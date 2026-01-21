@@ -3,23 +3,28 @@ using UnityEngine;
 
 public class PlayerController : MonoBehaviour
 {
+	//Player Components
 	private Rigidbody2D m_rigidbody2D;
 	private GatherInput m_gatherinput;
 	private Transform m_transform;
 	private Animator m_animator;
 
+	[Header("Move and Jump settings")]
 	[SerializeField] private float speed;
-	private int direction = 1;
-	private int idSpeed;
-	private int idIsGrounded;
-
 	[SerializeField] private float jumpForce;
+	private int direction = 1;
+	[SerializeField] private int extraJumps = 1;
+	[SerializeField] private int counterExtraJumps;
+	private int idSpeed;
 
-	[SerializeField] private Transform lFoot, rFoot;
+	[Header("Ground settings")]
+
+	[SerializeField] private Transform lFoot;
+	[SerializeField] private Transform rFoot;
 	[SerializeField] private bool isGrounded;
 	[SerializeField] private float rayLength;
 	[SerializeField] private LayerMask groundLayer;
-
+	private int idIsGrounded;
 
 	// Start is called once before the first execution of Update after the MonoBehaviour is created
 	void Start()
@@ -32,6 +37,7 @@ public class PlayerController : MonoBehaviour
 		idIsGrounded = Animator.StringToHash("isGrounded");
 		lFoot = GameObject.Find("LFoot").GetComponent<Transform>();
 		rFoot = GameObject.Find("RFoot").GetComponent<Transform>();
+		counterExtraJumps = extraJumps;
 	}
 
 	void Update()
@@ -73,6 +79,12 @@ public class PlayerController : MonoBehaviour
 		{
 			if (isGrounded)
 				m_rigidbody2D.linearVelocity = new Vector2(speed * m_gatherinput.ValueX, jumpForce);
+			if (counterExtraJumps > 0)
+			{
+
+				m_rigidbody2D.linearVelocity = new Vector2(speed * m_gatherinput.ValueX, jumpForce);
+				counterExtraJumps--;
+			}
 		}
 		m_gatherinput.IsJumping = false;
 	}
@@ -84,6 +96,7 @@ public class PlayerController : MonoBehaviour
 		if (lFootRay || rFootRay)
 		{
 			isGrounded = true;
+			counterExtraJumps = extraJumps;
 		}
 		else
 		{
