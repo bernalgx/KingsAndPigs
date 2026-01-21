@@ -30,14 +30,17 @@ public class GatherInput : MonoBehaviour
 
 	private void StartMove(InputAction.CallbackContext context)
 	{
-		_valueX = context.ReadValue<float>();
-		Debug.Log("ValueX: " + _valueX);
+		float rawValue = context.ReadValue<float>();
+		// Mathf.Sign devuelve 1 si el valor es positivo, -1 si es negativo y 0 si es cero.
+		_valueX = Mathf.RoundToInt(Mathf.Sign(rawValue));
+
+		// Si quieres asegurarte de que nunca sea 0 en esta función, puedes usar:
+		// _valueX = rawValue > 0 ? 1 : -1; 
 	}
 
 	private void StopMove(InputAction.CallbackContext context)
 	{
 		_valueX = 0f;
-		Debug.Log("ValueX: " + _valueX);
 	}
 
 
