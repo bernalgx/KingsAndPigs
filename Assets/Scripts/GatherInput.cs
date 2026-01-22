@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.InputSystem;
 
 
@@ -11,7 +11,10 @@ public class GatherInput : MonoBehaviour
 
 	[SerializeField]
 	private bool _isJumping;
+	[SerializeField] private bool _isJumpHeld;
 	public bool IsJumping { get => _isJumping; set => _isJumping = value; }
+	public bool IsJumpHeld => _isJumpHeld;
+
 
 
 	private void Awake()
@@ -35,7 +38,7 @@ public class GatherInput : MonoBehaviour
 		//_value = Mathf.Round(Mathf.Sign(rawValue));
 		_value = context.ReadValue<Vector2>().normalized;
 
-		// Si quieres asegurarte de que nunca sea 0 en esta funci�n, puedes usar:
+		// Si quieres asegurarte de que nunca sea 0 en esta función, puedes usar:
 		// _valueX = rawValue > 0 ? 1 : -1; 
 	}
 
@@ -48,11 +51,13 @@ public class GatherInput : MonoBehaviour
 	private void StartJump(InputAction.CallbackContext context)
 	{
 		_isJumping = true;
+		_isJumpHeld = true;  // 👈 nuevo (held)
 	}
 
 	private void StopJump(InputAction.CallbackContext context)
 	{
-		_isJumping = false;
+		//_isJumping = false;
+		_isJumpHeld = false; // 👈 solo suelta
 	}
 
 	private void OnDisable()
@@ -63,5 +68,6 @@ public class GatherInput : MonoBehaviour
 		controls.Player.Jump.canceled -= StopJump;
 		controls.Player.Disable();
 	}
+
 
 }

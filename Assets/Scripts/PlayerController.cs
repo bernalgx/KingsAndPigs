@@ -10,10 +10,18 @@ public class PlayerController : MonoBehaviour
 	private GatherInput m_gatherInput;
 	private Animator m_animator;
 
+	[Header("Gravity Settings")]
+	[SerializeField] private float fallMultiplier = 2.5f;
+	[SerializeField] private float lowJumpMultiplier = 2f;
+
+
+
+
 	//Animator IDs
 	private int idIsGrounded;
 	private int idSpeed;
 	private int idisWallDetected;
+	private int idisKnocked;
 
 	[Header("Move settings")]
 	[SerializeField] private float speed;
@@ -43,6 +51,15 @@ public class PlayerController : MonoBehaviour
 	[SerializeField] private bool canDoubleJump;
 	[SerializeField] private float wallJumpDuration = 0.6f;
 
+	//Knock Settings
+	[Header("Knockback Settings")]
+	[SerializeField] private bool isKnocked;
+	[SerializeField] private bool canBeKnocked;
+	[SerializeField] private Vector2 knockbackPower;
+	[SerializeField] private float knockedDuration;
+
+
+
 	private void Awake()
 	{
 		m_gatherInput = GetComponent<GatherInput>();
@@ -58,6 +75,7 @@ public class PlayerController : MonoBehaviour
 		idSpeed = Animator.StringToHash("speed");
 		idIsGrounded = Animator.StringToHash("isGrounded");
 		idisWallDetected = Animator.StringToHash("isWallDetected");
+		idisKnocked = Animator.StringToHash("Knockback");
 		lFoot = GameObject.Find("LFoot").GetComponent<Transform>();
 		rFoot = GameObject.Find("RFoot").GetComponent<Transform>();
 		counterExtraJumps = extraJumps;
@@ -78,9 +96,11 @@ public class PlayerController : MonoBehaviour
 	// Update is called once per frame
 	void FixedUpdate()
 	{
+		if (isKnocked) return;
 		CheckCollision();
 		Move();
 		Jump();
+		ApplyBetterJumpGravity();
 	}
 	private void CheckCollision()
 	{
@@ -147,23 +167,69 @@ public class PlayerController : MonoBehaviour
 		direction *= -1;
 	}
 
+
+	//JUMP del curso
+	//private void Jump()
+	//{
+	//	if (m_gatherInput.IsJumping)
+	//	{
+	//		if (isGrounded)
+	//		{
+	//			m_rigidbody2D.linearVelocity =
+	//				new Vector2(speed * m_gatherInput.Value.x, jumpForce);
+
+	//			canDoubleJump = true;
+	//		}
+	//		else if (isWallDetected) WallJump();
+	//		else if (counterExtraJumps > 0 && canDoubleJump) DoubleJump();
+	//	}
+
+	//	m_gatherInput.IsJumping = false;
+	//}
+
+
+	// JumP GPT
 	private void Jump()
 	{
-		if (m_gatherInput.IsJumping)
-		{
-			if (isGrounded)
-			{
-				m_rigidbody2D.linearVelocity =
-					new Vector2(speed * m_gatherInput.Value.x, jumpForce);
+		if (!m_gatherInput.IsJumping) return;
 
-				canDoubleJump = true;
-			}
-			else if (isWallDetected) WallJump();
-			else if (counterExtraJumps > 0 && canDoubleJump) DoubleJump();
+		if (isGrounded)
+		{
+			m_rigidbody2D.linearVelocity =
+				new Vector2(m_rigidbody2D.linearVelocityX, jumpForce);
+			canDoubleJump = true;
+		}
+		else if (isWallDetected)
+		{
+			WallJump();
+		}
+		else if (counterExtraJumps > 0 && canDoubleJump)
+		{
+			DoubleJump();
 		}
 
-		m_gatherInput.IsJumping = false;
+		m_gatherInput.IsJumping = false; // MUY importante
 	}
+
+	private void ApplyBetterJumpGravity()
+	{
+		if (m_rigidbody2D.linearVelocityY < 0)
+		{
+			// Caída más rápida
+			m_rigidbody2D.linearVelocity +=
+				Vector2.up * Physics2D.gravity.y * (fallMultiplier - 1) * Time.fixedDeltaTime;
+		}
+		else if (!isGrounded &&
+				 m_rigidbody2D.linearVelocityY > 0 &&
+				 !m_gatherInput.IsJumpHeld)
+		{
+			Debug.Log("CORTANDO SALTO");
+			m_rigidbody2D.linearVelocity +=
+				Vector2.up * Physics2D.gravity.y * (lowJumpMultiplier - 1) * Time.fixedDeltaTime;
+		}
+	}
+
+
 
 
 	private void WallJump()
@@ -190,8 +256,21 @@ public class PlayerController : MonoBehaviour
 		counterExtraJumps -= 1;
 	}
 
-
-
+	public void Knockback()
+	{
+		StartCoroutine(KnockbackRoutine());
+		m_rigidbody2D.linearVelocity =
+			new Vector2(knockbackPower.x * -direction, knockbackPower.y);
+		m_animator.SetTrigger(idisKnocked);
+	}
+	private IEnumerator KnockbackRoutine()
+	{
+		isKnocked = true;
+		canBeKnocked = false;
+		yield return new WaitForSeconds(knockedDuration);
+		isKnocked = false;
+		canBeKnocked = true;
+	}
 
 	private void OnDrawGizmos()
 	{
