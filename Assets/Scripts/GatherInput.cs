@@ -5,9 +5,9 @@ using UnityEngine.InputSystem;
 public class GatherInput : MonoBehaviour
 {
 	private Controls controls;
-	[SerializeField] private float _valueX;
+	[SerializeField] private Vector2 _value;
 
-	public float ValueX { get => _valueX; }
+	public Vector2 Value { get => _value; }
 
 	[SerializeField]
 	private bool _isJumping;
@@ -30,9 +30,10 @@ public class GatherInput : MonoBehaviour
 
 	private void StartMove(InputAction.CallbackContext context)
 	{
-		float rawValue = context.ReadValue<float>();
+		// Vector2 rawValue = context.ReadValue<Vector2>();
 		// Mathf.Sign devuelve 1 si el valor es positivo, -1 si es negativo y 0 si es cero.
-		_valueX = Mathf.RoundToInt(Mathf.Sign(rawValue));
+		//_value = Mathf.Round(Mathf.Sign(rawValue));
+		_value = context.ReadValue<Vector2>().normalized;
 
 		// Si quieres asegurarte de que nunca sea 0 en esta función, puedes usar:
 		// _valueX = rawValue > 0 ? 1 : -1; 
@@ -40,7 +41,7 @@ public class GatherInput : MonoBehaviour
 
 	private void StopMove(InputAction.CallbackContext context)
 	{
-		_valueX = 0f;
+		_value = Vector2.zero;
 	}
 
 

@@ -325,9 +325,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 84069607a4fa85f49b2670ed53eb8598, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerController
+  m_transform: {fileID: 287150999}
   speed: 5
-  jumpForce: 12
   extraJumps: 1
+  jumpForce: 12
   counterExtraJumps: 0
   lFoot: {fileID: 0}
   rFoot: {fileID: 0}
@@ -336,6 +337,13 @@ MonoBehaviour:
   groundLayer:
     serializedVersion: 2
     m_Bits: 128
+  checkWallDistance: 0.47
+  isWallDetected: 0
+  canWallSlide: 0
+  slideSpeed: 0
+  wallJumpForce: {x: 10, y: 16}
+  isWallJumping: 0
+  wallJumpDuration: 0.2
 --- !u!114 &287151003
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -348,7 +356,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2ae6aa948aa55ba4b89ee0739b61cff6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::NewMonoBehaviourScript
-  _valueX: 0
+  _value: {x: 0, y: 0}
   _isJumping: 0
 --- !u!114 &287151004
 MonoBehaviour:
