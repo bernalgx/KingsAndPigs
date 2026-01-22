@@ -3,37 +3,51 @@ using UnityEngine;
 
 public class PlayerController : MonoBehaviour
 {
-	//Player Components
+	[Header("Components")]
+	[SerializeField] private Transform m_transform;
 	private Rigidbody2D m_rigidbody2D;
 	private GatherInput m_gatherinput;
-	private Transform m_transform;
 	private Animator m_animator;
 
-	[Header("Move and Jump settings")]
-	[SerializeField] private float speed;
-	[SerializeField] private float jumpForce;
-	private int direction = 1;
-	[SerializeField] private int extraJumps = 1;
-	[SerializeField] private int counterExtraJumps;
+	//Animator IDs
+	private int idIsGrounded;
 	private int idSpeed;
 
-	[Header("Ground settings")]
+	[Header("Move settings")]
+	[SerializeField] private float speed;
+	private int direction = 1;
 
+	[Header("Jump settings")]
+	[SerializeField] private int extraJumps = 1;
+	[SerializeField] private float jumpForce;
+	[SerializeField] private int counterExtraJumps;
+
+	[Header("Ground settings")]
 	[SerializeField] private Transform lFoot;
 	[SerializeField] private Transform rFoot;
+	RaycastHit2D lFootRay;
+	RaycastHit2D rFootRay;
 	[SerializeField] private bool isGrounded;
 	[SerializeField] private float rayLength;
 	[SerializeField] private LayerMask groundLayer;
-	private int idIsGrounded;
+
+	//Wall settings
+	[SerializeField] private float checkWallDistance;
+	[SerializeField] private bool isWallDetected;
+
+
+	private void Awake()
+	{
+		m_gatherinput = GetComponent<GatherInput>();
+		//m_transform = GetComponent<Transform>();
+		m_rigidbody2D = GetComponent<Rigidbody2D>();
+		m_animator = GetComponent<Animator>();
+	}
 
 	// Start is called once before the first execution of Update after the MonoBehaviour is created
 	void Start()
 	{
-		m_gatherinput = GetComponent<GatherInput>();
-		m_transform = GetComponent<Transform>();
-		m_rigidbody2D = GetComponent<Rigidbody2D>();
-		m_animator = GetComponent<Animator>();
-		idSpeed = Animator.StringToHash("Speed");
+		idSpeed = Animator.StringToHash("speed");
 		idIsGrounded = Animator.StringToHash("isGrounded");
 		lFoot = GameObject.Find("LFoot").GetComponent<Transform>();
 		rFoot = GameObject.Find("RFoot").GetComponent<Transform>();
@@ -54,9 +68,34 @@ public class PlayerController : MonoBehaviour
 	// Update is called once per frame
 	void FixedUpdate()
 	{
+		CheckCollision();
 		Move();
 		Jump();
-		CheckGround();
+	}
+	private void CheckCollision()
+	{
+		HandleGround();
+		HandleWall();
+	}
+
+	private void HandleWall()
+	{
+		isWallDetected = Physics2D.Raycast(m_transform.position, Vector2.right * direction, checkWallDistance, groundLayer);
+	}
+
+	private void HandleGround()
+	{
+		lFootRay = Physics2D.Raycast(lFoot.position, Vector2.down, rayLength, groundLayer);
+		rFootRay = Physics2D.Raycast(rFoot.position, Vector2.down, rayLength, groundLayer);
+		if (lFootRay || rFootRay)
+		{
+			isGrounded = true;
+			counterExtraJumps = extraJumps;
+		}
+		else
+		{
+			isGrounded = false;
+		}
 	}
 
 	private void Move()
@@ -71,8 +110,8 @@ public class PlayerController : MonoBehaviour
 			m_transform.localScale = new Vector3(-m_transform.localScale.x, 1, 1);
 			direction *= -1;
 		}
-
 	}
+
 	private void Jump()
 	{
 		if (m_gatherinput.IsJumping)
@@ -89,18 +128,9 @@ public class PlayerController : MonoBehaviour
 		m_gatherinput.IsJumping = false;
 	}
 
-	private void CheckGround()
+	private void OnDrawGizmos()
 	{
-		RaycastHit2D lFootRay = Physics2D.Raycast(lFoot.position, Vector2.down, rayLength, groundLayer);
-		RaycastHit2D rFootRay = Physics2D.Raycast(rFoot.position, Vector2.down, rayLength, groundLayer);
-		if (lFootRay || rFootRay)
-		{
-			isGrounded = true;
-			counterExtraJumps = extraJumps;
-		}
-		else
-		{
-			isGrounded = false;
-		}
+		Gizmos.DrawLine(m_transform.position, new Vector2(m_transform.position.x + checkWallDistance * direction, m_transform.position.y));
 	}
+
 }
