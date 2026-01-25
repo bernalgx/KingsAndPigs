@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using UnityEngine;
 
@@ -11,10 +11,22 @@ public class PlayerController : MonoBehaviour
 	private Animator m_animator;
 
 	[Header("Gravity Settings")]
+	//[SerializeField] private float fallMultiplier = 2.5f;
+	//[SerializeField] private float lowJumpMultiplier = 2f;
 	[SerializeField] private float fallMultiplier = 2.5f;
 	[SerializeField] private float lowJumpMultiplier = 2f;
 
+	private float jumpLockUntil;
+	[SerializeField] private float jumpLockDuration = 0.05f;
 
+	private float coyoteTime = 0.1f;
+	private float jumpBufferTime = 0.1f;
+	private float maxFallSpeed = -50f;
+
+
+
+	private float coyoteTimer;
+	private float jumpBufferTimer;
 
 
 	//Animator IDs
@@ -63,7 +75,7 @@ public class PlayerController : MonoBehaviour
 	private void Awake()
 	{
 		m_gatherInput = GetComponent<GatherInput>();
-		m_transform = transform;
+		//m_transform = transform;
 		m_rigidbody2D = GetComponent<Rigidbody2D>();
 		m_animator = GetComponent<Animator>();
 	}
@@ -79,6 +91,8 @@ public class PlayerController : MonoBehaviour
 		lFoot = GameObject.Find("LFoot").GetComponent<Transform>();
 		rFoot = GameObject.Find("RFoot").GetComponent<Transform>();
 		counterExtraJumps = extraJumps;
+		GameManager.instance.AddScore();
+
 	}
 
 	void Update()
@@ -98,10 +112,30 @@ public class PlayerController : MonoBehaviour
 	{
 		if (isKnocked) return;
 		CheckCollision();
+		UpdateCoyoteTime();
+		UpdateJumpBuffer();
 		Move();
 		Jump();
 		ApplyBetterJumpGravity();
 	}
+
+
+	private void UpdateCoyoteTime()
+	{
+		if (isGrounded)
+			coyoteTimer = coyoteTime;
+		else
+			coyoteTimer -= Time.fixedDeltaTime;
+	}
+
+	private void UpdateJumpBuffer()
+	{
+		if (m_gatherInput.IsJumping)
+			jumpBufferTimer = jumpBufferTime;
+		else
+			jumpBufferTimer -= Time.fixedDeltaTime;
+	}
+
 	private void CheckCollision()
 	{
 		HandleGround();
@@ -122,6 +156,7 @@ public class PlayerController : MonoBehaviour
 		else
 		{
 			isGrounded = false;
+			canDoubleJump = true;
 		}
 	}
 
@@ -168,6 +203,59 @@ public class PlayerController : MonoBehaviour
 	}
 
 
+
+	/// ORO PURO  SILKSONG JUMP////
+
+
+	/*private bool TryDoJump()
+	{
+		if (this.hc.cState.dashing || this.hc.cState.airDashing)
+		{
+			return false;
+		}
+		if (!this.canJump)
+		{
+			if (!this.isEnterTumbling)
+			{
+				this.isJumpQueued = true;
+			}
+			return false;
+		}
+		this.entryDelayTime = Time.timeAsDouble + 0.05000000447034836;
+		this.isJumpQueued = false;
+		this.waterEnterJumpQueueTimeLeft = 0f;
+		Vector2 linearVelocity = this.body.linearVelocity;
+		bool flag = this.isSprinting;
+		this.animator.Play("Airborne");
+		this.body.linearVelocity = new Vector2(0f, 10f);
+		this.TranslateIfNecessary();
+		this.hc.ResetInputQueues();
+		if (this.isSprinting)
+		{
+			this.hc.SetStartWithFlipJump();
+		}
+		else
+		{
+			this.hc.SetStartWithJump();
+		}
+		this.ExitedWater(true);
+		if (flag && Math.Abs(linearVelocity.x) > 0.01f)
+		{
+			this.hc.AddExtraAirMoveVelocity(new HeroController.DecayingVelocity
+			{
+				Velocity = new Vector2(linearVelocity.x, 0f),
+				Decay = 3f,
+				CancelOnTurn = true,
+				SkipBehaviour = HeroController.DecayingVelocity.SkipBehaviours.WhileMoving
+			});
+		}
+		return true;
+	}*/
+
+
+
+
+
 	//JUMP del curso
 	//private void Jump()
 	//{
@@ -190,32 +278,53 @@ public class PlayerController : MonoBehaviour
 
 	// JumP GPT
 	private void Jump()
-	{
-		if (!m_gatherInput.IsJumping) return;
 
-		if (isGrounded)
+
+	{
+		// 1️⃣ Si no hay intención almacenada, no hacemos nada
+		if (jumpBufferTimer <= 0) return;
+
+		if (Time.time < jumpLockUntil) return;
+
+		// 2️⃣ Ejecutamos el salto cuando sea válido
+		if (coyoteTimer > 0)
 		{
 			m_rigidbody2D.linearVelocity =
 				new Vector2(m_rigidbody2D.linearVelocityX, jumpForce);
+
 			canDoubleJump = true;
+
+			ConsumeJump();
 		}
 		else if (isWallDetected)
 		{
 			WallJump();
+			ConsumeJump();
 		}
 		else if (counterExtraJumps > 0 && canDoubleJump)
 		{
 			DoubleJump();
+			ConsumeJump();
 		}
-
-		m_gatherInput.IsJumping = false; // MUY importante
 	}
+
+	private void ConsumeJump()
+	{
+		jumpBufferTimer = 0;
+		coyoteTimer = 0;
+		m_gatherInput.IsJumping = false;
+
+		jumpLockUntil = Time.time + jumpLockDuration;
+	}
+
+
+
 
 	private void ApplyBetterJumpGravity()
 	{
 		if (m_rigidbody2D.linearVelocityY < 0)
 		{
-			// Ca�da m�s r�pida
+			// Caída más rápida
 			m_rigidbody2D.linearVelocity +=
 				Vector2.up * Physics2D.gravity.y * (fallMultiplier - 1) * Time.fixedDeltaTime;
 		}
@@ -226,6 +335,11 @@ public class PlayerController : MonoBehaviour
 			Debug.Log("CORTANDO SALTO");
 			m_rigidbody2D.linearVelocity +=
 				Vector2.up * Physics2D.gravity.y * (lowJumpMultiplier - 1) * Time.fixedDeltaTime;
+		}
+		if (m_rigidbody2D.linearVelocityY < maxFallSpeed)
+		{
+			m_rigidbody2D.linearVelocity =
+				new Vector2(m_rigidbody2D.linearVelocityX, maxFallSpeed);
 		}
 	}
 

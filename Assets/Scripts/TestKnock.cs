@@ -5,6 +5,10 @@ public class TestKnock : MonoBehaviour
 	// Start is called once before the first execution of Update after the MonoBehaviour is created
 	private void OnTriggerEnter2D(Collider2D collision)
 	{
-		collision.GetComponent<PlayerController>().Knockback();
+		if (collision.CompareTag("Player"))
+		{
+			collision.GetComponent<PlayerController>().Knockback();
+			Debug.Log(GameManager.instance.PlayerController.name);
+		}
 	}
 }
