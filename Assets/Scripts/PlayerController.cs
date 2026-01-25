@@ -23,7 +23,11 @@ public class PlayerController : MonoBehaviour
 	private float jumpBufferTime = 0.1f;
 	private float maxFallSpeed = -50f;
 
+	[Header("Air Momentum")]
+	[SerializeField] private float airMomentumDecay = 3f;
 
+	private float airMomentumX;
+	private bool hasAirMomentum;
 
 	private float coyoteTimer;
 	private float jumpBufferTimer;
@@ -38,6 +42,7 @@ public class PlayerController : MonoBehaviour
 	[Header("Move settings")]
 	[SerializeField] private float speed;
 	private int direction = 1;
+	[SerializeField] private bool hasSprintMomentum = false;
 
 	[Header("Jump settings")]
 	[SerializeField] private int extraJumps = 1;
@@ -115,6 +120,7 @@ public class PlayerController : MonoBehaviour
 		UpdateCoyoteTime();
 		UpdateJumpBuffer();
 		Move();
+		ApplyAirMomentum();
 		Jump();
 		ApplyBetterJumpGravity();
 	}
@@ -179,6 +185,7 @@ public class PlayerController : MonoBehaviour
 
 	private void Move()
 	{
+
 		if (isWallDetected && !isGrounded) return;
 		if (isWallJumping) return;
 
@@ -308,8 +315,39 @@ public class PlayerController : MonoBehaviour
 		}
 	}
 
+	private void ApplyAirMomentum()
+	{
+		if (!hasSprintMomentum) return;
+		if (!hasAirMomentum) return;
+		if (isGrounded) return;
+
+		airMomentumX = Mathf.Lerp(
+			airMomentumX,
+			0f,
+			Time.fixedDeltaTime * airMomentumDecay
+		);
+
+		m_rigidbody2D.linearVelocity =
+			new Vector2(
+				airMomentumX + speed * m_gatherInput.Value.x,
+				m_rigidbody2D.linearVelocityY
+			);
+
+		if (Mathf.Abs(airMomentumX) < 0.05f)
+		{
+			airMomentumX = 0f;
+			hasAirMomentum = false;
+		}
+	}
+
+
 	private void ConsumeJump()
 	{
+
+		// Capturamos el impulso horizontal ACTUAL
+		airMomentumX = m_rigidbody2D.linearVelocityX;
+		hasAirMomentum = Mathf.Abs(airMomentumX) > 0.01f;
+
 		jumpBufferTimer = 0;
 		coyoteTimer = 0;
 		m_gatherInput.IsJumping = false;
@@ -388,7 +426,37 @@ public class PlayerController : MonoBehaviour
 
 	private void OnDrawGizmos()
 	{
-		Gizmos.DrawLine(m_transform.position, new Vector2(m_transform.position.x + checkWallDistance * direction, m_transform.position.y));
+		if (!Application.isPlaying) return;
+
+		Vector3 pos = transform.position;
+
+		// 🐺 COYOTE TIME (amarillo)
+		if (coyoteTimer > 0 && !isGrounded)
+		{
+			Gizmos.color = Color.yellow;
+			Gizmos.DrawWireSphere(pos + Vector3.up * 0.5f, 0.3f);
+		}
+
+		// 🧠 JUMP BUFFER (azul)
+		if (jumpBufferTimer > 0)
+		{
+			Gizmos.color = Color.cyan;
+			Gizmos.DrawWireSphere(pos + Vector3.up * 0.5f, 0.5f);
+		}
+
+		// ⬇️ FALL SPEED CLAMP (rojo)
+		if (m_rigidbody2D.linearVelocityY <= maxFallSpeed + 0.1f)
+		{
+			Gizmos.color = Color.red;
+			Gizmos.DrawLine(pos, pos + Vector3.down * 1.5f);
+		}
+
+		// 🧱 WALL CHECK
+		Gizmos.color = isWallDetected ? Color.magenta : Color.gray;
+		Gizmos.DrawLine(
+			pos,
+			pos + Vector3.right * direction * checkWallDistance
+		);
 	}
 
 }
