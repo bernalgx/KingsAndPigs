@@ -4,6 +4,23 @@ using UnityEngine;
 
 public class PlayerController : MonoBehaviour
 {
+
+	// 1. CONFIG / SETTINGS (Serialized Fields)
+	// 2. STATE (runtime variables)
+	// 3. UNITY LIFECYCLE (Awake / Start / Update / FixedUpdate)
+	// 4. INPUT & TIMERS
+	// 5. COLLISION CHECKS
+	// 6. MOVEMENT (ground / air)
+	// 7. JUMP SYSTEM
+	// 8. WALL SYSTEM
+	// 9. PHYSICS MODIFIERS (gravity, clamp)
+	// 10. COMBAT / KNOCKBACK
+	// 11. DEBUG
+
+
+
+
+
 	[Header("Components")]
 	[SerializeField] private Transform m_transform;
 	private Rigidbody2D m_rigidbody2D;
@@ -173,20 +190,29 @@ public class PlayerController : MonoBehaviour
 
 	private void HandleWallSlide()
 	{
-		canWallSlide = isWallDetected;
-		if (!canWallSlide) return;
+		// Solo wall slide si:
+		// - hay pared
+		// - no estás en el suelo
+		// - estás cayendo (o en el tope del salto)
+		if (!isWallDetected) return;
+		if (isGrounded) return;
+		if (m_rigidbody2D.linearVelocityY > 0) return;
 
-		canDoubleJump = false;
-		slideSpeed = m_gatherInput.Value.y < 0 ? 1 : 0.5f;
+		canWallSlide = true;
+
+		slideSpeed = m_gatherInput.Value.y < 0 ? 1f : 0.5f;
 		m_rigidbody2D.linearVelocity =
-			new Vector2(m_rigidbody2D.linearVelocityX,
-						m_rigidbody2D.linearVelocityY * slideSpeed);
+			new Vector2(
+				m_rigidbody2D.linearVelocityX,
+				m_rigidbody2D.linearVelocityY * slideSpeed
+			);
 	}
+
 
 	private void Move()
 	{
 
-		if (isWallDetected && !isGrounded) return;
+		//if (isWallDetected && !isGrounded) return;
 		if (isWallJumping) return;
 
 		Flip();
