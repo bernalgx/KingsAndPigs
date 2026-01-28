@@ -1,0 +1,726 @@
+You are an experienced 2D action game engine programmer.
+Assume deep familiarity with Hollow Knight / Silksong–style combat systems.
+
+I am going to paste:
+- Decompiled Silksong source code related to attacks
+- Example Unity tutorial code
+- A long tutorial transcript explaining the design
+
+Your task is NOT to explain these line by line.
+
+DO NOT:
+- Give beginner explanations
+- Explain Unity basics
+- Summarize the tutorial
+- Repeat the transcript in your own words
+
+INSTEAD:
+1. Extract the underlying combat architecture used by Silksong:
+   - decision layer
+   - attack orchestration
+   - hitbox / damager responsibility
+   - state transitions
+
+2. Compare that architecture against the tutorial code:
+   - what concepts match
+   - what concepts are oversimplified or wrong
+   - what is missing for a real engine
+
+3. Design a CLEAN, MINIMAL Unity architecture inspired by Silksong:
+   - list the core components (classes / responsibilities)
+   - explain how they communicate (not code yet)
+   - show the attack flow as a sequence (input → decision → attack → hit → recovery)
+
+4. Finally, provide:
+   - a minimal pseudocode outline
+   - and a small Unity example ONLY for the hitbox activation part
+     (no damage, no animation yet)
+
+Assume I already understand the context and want engine-level clarity.
+
+Additionally, include the DASH system as part of the same architecture.
+
+Specifically:
+- Treat dash as a first-class action, not a movement detail
+- Explain how Silksong gates attacks while dashing (and vice versa)
+- Explain why CanAttackAction() contains dash-related conditions
+- Explain the relationship between:
+  - dash state
+  - dash recovery
+  - attack cancel windows
+  - downward dash vs downward attack
+
+Then extend the proposed Unity architecture to include:
+- a DashController (or equivalent)
+- how dash and attack arbitrate control
+- how shared state is resolved without hard-coupling
+
+Assume this is decompiled production code where decision logic, execution logic, and effects are intentionally decoupled.
+
+Assume I do NOT yet have a proper action/state system.
+Part of your task is to IDENTIFY the minimal set of states and flags
+required to make this architecture work at engine level.
+
+
+
+You are an experienced 2D action game engine programmer.
+Assume deep familiarity with Hollow Knight / Silksong–style systems.
+
+I already have:
+- A PlayerController that handles movement, jump, wall slide, gravity, momentum
+- A separate input gathering script
+- No proper action/state system yet
+
+I am pasting:
+- Decompiled Silksong attack + dash code
+- A Unity tutorial implementation
+- A full PlayerController implementation (movement-focused)
+
+Your task is NOT to rewrite my PlayerController.
+
+DO NOT:
+- Explain Unity basics
+- Talk about Animator setup in detail
+- Give beginner tutorials
+- Rewrite my existing movement code
+
+INSTEAD:
+
+1. Identify the MINIMAL PlayerState (cState) needed:
+   - list the required flags
+   - explain what each flag represents conceptually
+   - explain which system is allowed to WRITE each flag
+
+2. Identify the missing ACTIONS in my current setup:
+   - Attack
+   - Dash
+   - DownAttack / DownSpike
+   - Recovery / Lockout
+   Explain how they should be modeled as actions, not animations.
+
+3. Design a clean, minimal action arbitration flow inspired by Silksong:
+   - how CanAttackAction() works conceptually
+   - how dash blocks or allows attack
+   - how attack can cancel dash
+   - how downward input is resolved (attack vs down-dash)
+
+4. Propose a Unity architecture that fits my existing PlayerController:
+   - PlayerState (data only)
+   - AttackController
+   - DashController
+   - How they communicate (events / flags / queries)
+
+5. Provide:
+   - a state diagram (textual)
+   - minimal pseudocode (no full Unity scripts)
+   - one very small Unity example showing ONLY how a hitbox is enabled/disabled via state
+
+Assume this is production-style, decompiled code with intentional decoupling.
+Assume I want engine-level clarity, not tutorial-level guidance.
+
+
+
+
+//////////---------------------------
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class EnemyHealth : MonoBehaviour
+{
+    //Determines if this GameObject should receive damage or not
+    [SerializeField]
+    private bool damageable = true;
+    //The total number of health points the GameObject should have
+    [SerializeField]
+    private int healthAmount = 100;
+    //The max amount of time after receiving damage that the enemy can no longer receive damage; this is to help prevent the same melee attack dealing damage multiple times
+    [SerializeField]
+    private float invulnerabilityTime = .2f;
+    //Allows the player to be forced up when performing a downward strike above the enemy
+    public bool giveUpwardForce = true;
+    //Bool that manages if the enemy can receive more damage
+    private bool hit;
+    //The current amount after receiving damage the enemy has
+    private int currentHealth;
+
+    private void Start()
+    {
+        //Sets the enemy to the max amount of health when the scene loads
+        currentHealth = healthAmount;    
+    }
+
+    public void Damage(int amount)
+    {
+        //First checks to see if the player is currently in an invulnerable state; if not it runs the following logic.
+        if (damageable && !hit && currentHealth > 0)
+        {
+            //First sets hit to true
+            hit = true;
+            //Reduces currentHealthPoints by the amount value that was set by whatever script called this method, for this tutorial in the OnTriggerEnter2D() method
+            currentHealth -= amount;
+            //If currentHealthPoints is below zero, player is dead, and then we handle all the logic to manage the dead state
+            if (currentHealth <= 0)
+            {
+                //Caps currentHealth to 0 for cleaner code
+                currentHealth = 0;
+                //Removes GameObject from the scene; this should probably play a dying animation in a method that would handle all the other death logic, but for the test it just disables it from the scene
+                gameObject.SetActive(false);
+            }
+            else
+            {
+                //Coroutine that runs to allow the enemy to receive damage again
+                StartCoroutine(TurnOffHit());
+            }
+        }
+    }
+
+    //Coroutine that runs to allow the enemy to receive damage again
+    private IEnumerator TurnOffHit()
+    {
+        //Wait in the amount of invulnerabilityTime, which by default is .2 seconds
+        yield return new WaitForSeconds(invulnerabilityTime);
+        //Turn off the hit bool so the enemy can receive damage again
+        hit = false;
+    }
+}
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class MeleeAttackManager : Character
+{
+    //How much the player should move either downwards or horizontally when melee attack collides with a GameObject that has EnemyHealth script on it
+    public float defaultForce = 300;
+    //How much the player should move upwards when melee attack collides with a GameObject that has EnemyHealth script on it
+    public float upwardsForce = 600;
+    //How long the player should move when melee attack collides with a GameObject that has EnemyHealth script on it
+    public float movementTime = .1f;
+    //Input detection to see if the button to perform a melee attack has been pressed
+    private bool meleeAttack;
+    //The animator on the meleePrefab
+    private Animator meleeAnimator;
+
+    /*
+    //The Animator component on the player
+    private Animator anim;
+    //The Character script on the player; this script on my project manages the grounded state, so if you have a different script for that reference that script
+    private Character character;
+
+    //Run this method instead of Initialization if you don't have any scripts inheriting from each other
+    private void Start()
+    {
+        //The Animator component on the player
+        anim = GetComponent<Animator>();
+        //The Character script on the player; this script on my project manages the grounded state, so if you have a different script for that reference that script
+        character = GetComponent<Character>();
+        //The animator on the meleePrefab
+        meleeAnimator = GetComponentInChildren<MeleeWeapon>().gameObject.GetComponent<Animator>();
+    }
+    */
+
+    //Start method from the Character script; grabs all the references the script has and adds some; if you don't inherit from a parent Character script, delete or comment out this method and use Start instead
+    protected override void Initializtion()
+    {
+        //This grabs all the references already defined by the Character script
+        base.Initializtion();
+        //The animator on the meleePrefab
+        meleeAnimator = GetComponentInChildren<MeleeWeapon>().gameObject.GetComponent<Animator>();
+    }
+
+
+    private void Update()
+    {
+        //Method that checks to see what keys are being pressed
+        CheckInput();
+    }
+
+    private void CheckInput()
+    {
+        //Checks to see if Backspace key is pressed which I define as melee attack; you can of course change this to anything you would want
+        if (Input.GetKeyDown(KeyCode.Backspace))
+        {
+            //Sets the meleeAttack bool to true
+            meleeAttack = true;
+        }
+        else
+        {
+            //Turns off the meleeAttack bool
+            meleeAttack = false;
+        }
+        //Checks to see if meleeAttack is true and pressing up
+        if (meleeAttack && Input.GetAxis("Vertical") > 0)
+        {
+            //Turns on the animation for the player to perform an upward melee attack
+            anim.SetTrigger("UpwardMelee");
+            //Turns on the animation on the melee weapon to show the swipe area for the melee attack upwards
+            meleeAnimator.SetTrigger("UpwardMeleeSwipe");
+        }
+        //Checks to see if meleeAttack is true and pressing down while also not grounded
+        if (meleeAttack && Input.GetAxis("Vertical") < 0 && !character.isGrounded)
+        {
+            //Turns on the animation for the player to perform a downward melee attack
+            anim.SetTrigger("DownwardMelee");
+            //Turns on the animation on the melee weapon to show the swipe area for the melee attack downwards
+            meleeAnimator.SetTrigger("DownwardMeleeSwipe");
+        }
+        //Checks to see if meleeAttack is true and not pressing any direction
+        if ((meleeAttack && Input.GetAxis("Vertical") == 0)
+             //OR if melee attack is true and pressing down while grounded
+            || meleeAttack && (Input.GetAxis("Vertical") < 0 && character.isGrounded))
+        {
+            //Turns on the animation for the player to perform a forward melee attack
+            anim.SetTrigger("ForwardMelee");
+            //Turns on the animation on the melee weapon to show the swipe area for the melee attack forwards
+            meleeAnimator.SetTrigger("ForwardMeleeSwipe");
+        }
+    }
+}
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class MeleeWeapon : MonoBehaviour
+{
+    //How much damage the melee attack does
+    [SerializeField]
+    private int damageAmount = 20;
+    //Reference to Character script which contains the value if the player is facing left or right; if you don't have this or it's named something different, either omit it or change the class name to what your Character script is called
+    private Character character;
+    //Reference to the Rigidbody2D on the player
+    private Rigidbody2D rb;
+    //Reference to the MeleeAttackManager script on the player
+    private MeleeAttackManager meleeAttackManager;
+    //Reference to the direction the player needs to go in after melee weapon contacts something
+    private Vector2 direction;
+    //Bool that manages if the player should move after melee weapon colides
+    private bool collided;
+    //Determines if the melee strike is downwards to perform extra force to fight against gravity
+    private bool downwardStrike;
+
+    private void Start()
+    {
+        //Reference to the Character script on the player; if you don't have this or it's named something different, either omit it or change the class name to what your Character script is called
+        character = GetComponentInParent<Character>();
+        //Reference to the Rigidbody2D on the player
+        rb = GetComponentInParent<Rigidbody2D>();
+        //Reference to the MeleeAttackManager script on the player
+        meleeAttackManager = GetComponentInParent<MeleeAttackManager>();
+    }
+
+    private void FixedUpdate()
+    {
+        //Uses the Rigidbody2D AddForce method to move the player in the correct direction
+        HandleMovement();
+    }
+
+    private void OnTriggerEnter2D(Collider2D collision)
+    {
+        //Checks to see if the GameObject the MeleeWeapon is colliding with has an EnemyHealth script
+        if (collision.GetComponent<EnemyHealth>())
+        {
+            //Method that checks to see what force can be applied to the player when melee attacking
+            HandleCollision(collision.GetComponent<EnemyHealth>());
+        }
+    }
+
+    private void HandleCollision(EnemyHealth objHealth)
+    {
+        //Checks to see if the GameObject allows for upward force and if the strike is downward as well as grounded
+        if (objHealth.giveUpwardForce && Input.GetAxis("Vertical") < 0 && !character.isGrounded)
+        {
+            //Sets the direction variable to up
+            direction = Vector2.up;
+            //Sets downwardStrike to true
+            downwardStrike = true;
+            //Sets collided to true
+            collided = true;
+        }
+        if (Input.GetAxis("Vertical") > 0 && !character.isGrounded)
+        {
+            //Sets the direction variable to up
+            direction = Vector2.down;
+            //Sets collided to true
+            collided = true;
+        }
+        //Checks to see if the melee attack is a standard melee attack
+        if ((Input.GetAxis("Vertical") <= 0 && character.isGrounded) || Input.GetAxis("Vertical") == 0)
+        {
+            //Checks to see if the player is facing left; if you don't have a character script, the commented out line of code can also check for that
+            if (character.isFacingLeft) //(transform.parent.localScale.x < 0)
+            {
+                //Sets the direction variable to right
+                direction = Vector2.right;
+            }
+            else
+            {
+                //Sets the direction variable to right left
+                direction = Vector2.left;
+            }
+            //Sets collided to true
+            collided = true;
+        }
+        //Deals damage in the amount of damageAmount
+        objHealth.Damage(damageAmount);
+        //Coroutine that turns off all the bools related to melee attack collision and direction
+        StartCoroutine(NoLongerColliding());
+    }
+
+    //Method that makes sure there should be movement from a melee attack and applies force in the appropriate direction based on the amount of force from the melee attack manager script
+    private void HandleMovement()
+    {
+        //Checks to see if the GameObject should allow the player to move when melee attack colides
+        if (collided)
+        {
+            //If the attack was in a downward direction
+            if (downwardStrike)
+            {
+                //Propels the player upwards by the amount of upwardsForce in the meleeAttackManager script
+                rb.AddForce(direction * meleeAttackManager.upwardsForce);
+            }
+            else
+            {
+                //Propels the player backwards by the amount of horizontalForce in the meleeAttackManager script
+                rb.AddForce(direction * meleeAttackManager.defaultForce);
+            }
+        }
+    }
+
+    //Coroutine that turns off all the bools that allow movement from the HandleMovement method
+    private IEnumerator NoLongerColliding()
+    {
+        //Waits in the amount of time setup by the meleeAttackManager script; this is by default .1 seconds
+        yield return new WaitForSeconds(meleeAttackManager.movementTime);
+        //Turns off the collided bool
+        collided = false;
+        //Turns off the downwardStrike bool
+        downwardStrike = false;
+    }
+}
+
+
+y en el decompiler de silksong esto 	private bool CanAttackAction()
+	{
+		return !this.cState.attacking && (!this.cState.dashing || this.dashingDown) && !this.cState.dead && !this.cState.hazardDeath && !this.cState.hazardRespawning && !this.controlReqlinquished && this.hero_state != ActorStates.no_input && this.hero_state != ActorStates.hard_landing && this.hero_state != ActorStates.dash_landing && this.CanInput() && (!this.inputHandler.inputActions.Down.IsPressed || this.CanDownAttack());
+	} 
+
+private bool CanAttackAction()
+{
+    return !this.cState.attacking
+        && (!this.cState.dashing || this.dashingDown)
+        && !this.cState.dead
+        && !this.cState.hazardDeath
+        && !this.cState.hazardRespawning
+        && !this.controlReqlinquished
+        && this.hero_state != ActorStates.no_input
+        && this.hero_state != ActorStates.hard_landing
+        && this.hero_state != ActorStates.dash_landing
+        && this.CanInput()
+        && (!this.inputHandler.inputActions.Down.IsPressed || this.CanDownAttack());
+}
+
+Hey, how's it going everyone? This is IamError, and I'm back with another tutorial on Unity. In this video I'll be discussing how you can create a melee attack similar to what you would see in Team Cherry's very popular, 2D action platformer, Hollow Knight. Melee attacks are increasingly becoming a staple of 2D action platformers, and Hollow Knight especially made great use of the mechanic, not just for combat, but for exploration as well. And despite basically having the exact same melee weapon throughout the entire game, The combat mechanics and exploration features made sure that Hollow Knight's melee weapon never felt stale. So what makes Hollow Knight's melee attack stand out among all the other action platformers? In my opinion, it's the feedback the player receives whenever the melee attack collides with certain game objects. So in this video, not only will I be discussing how to get a melee attack that looks similar to what Hollow Knight offers, but also get the functionality to have the player move in the opposite direction of the melee strike. Assuming you have some way of managing the player grounded state for your project, this solution doesn't require you to follow any of my previous tutorials to get the same result that I go over in this video, and there's a link to my GitHub page in the description of this tutorial that'll contain the new scripts for you to copy for your project so you can easily follow along with this tutorial and understand how everything works. However, if you prefer to type out my solution as I describe it, I'll make sure all the code I go over is visible and easy to read on small devices. I also debated on splitting up this tutorial between 2 different videos because there's really a lot to cover, but I will be covering everything in this one tutorial. So without any further delays, let's go ahead and get started. Before we write any new code or game design, let's first take some quick notes on all the different aspects of a melee attack in Hollow Knight so we can get an understanding of what type of solution we need to make and how we can go about making it. Right now I'm at the very beginning of Hollow Knight. Let's first determine how many different melee attacks the player has and what melee attack occurs when I press certain input. A standard melee attack will go ahead and have the melee swipe occur right in front of the player. If I'm holding up while performing a melee attack, the player will go ahead and perform an upwards melee attack, and that same swipe that was in front of the player for the standard melee attack is now of course above the player. However, if I hold down and perform a melee attack, The standard melee attack still plays, and the only way to actually perform a downward melee attack is to attack while holding down when the player is not grounded. So Hollow Knight only has 4 different directions in which the player can perform a melee attack. Now that we know what directions we need to solve for with the melee attack, let's take some notes on what feedback the player receives when the melee attack collides with game objects. The player moves horizontally in the opposite direction when the melee attack collides with most game objects. This feedback happens with every enemy type as well as certain platforms and walls. Now when I perform a downward strike, the walls that I'm testing out with don't actually propel the player in any direction at all. But if I'm jumping and just perform a regular melee attack, you'll see the player still moves horizontally in the opposite direction. Let me perform a downward strike on this enemy right here, and you'll notice the player moves up a little bit when the melee attack connects with the enemy. And then of course after a couple hits the enemy's dead. So far the enemies in Hollow Knight are the only game objects that propel the player in any direction when performing a downward strike. But there's this nuanced foreground game object that also propels the player upwards and then dies after one strike. Now I'll move down here where I know there's some spike game objects. that can also propel the player upwards when performing a downward strike. However, unlike the foreground game object in the enemy, no matter how many times I hit this spike game object, it won't die. And that's of course true for the walls and other platforms as well. So basically for every enemy in certain game objects, The player will be forced in the opposite direction horizontally when the melee attack connects with it. And then for every enemy, foreground, and spike game objects, the player will be forced up when performing a downward strike and the melee attack connects with that game object. So we need to write a script that we can attach to all enemies and certain game objects that will first manage health values and then manage if the player can be forced upwards when performing a downward strike. To manage the game object's health and what direction the player can be forced in when the melee attack collides with it, we can consolidate all that logic into one script, and despite some of these game objects not really have any health values, I'm going to call this script EnemyHealth. We'll attach this EnemyHealth script to any game object that can receive damage and or force the player to move in the appropriate direction when the melee attack collides with it. I'll show you how we can control everything I just mentioned through that one script, but again that's only going to manage the health and if the player can be forced in any direction when performing a melee strike. We'll also need to make a separate script that we would attach to the melee weapon so it can determine when the melee attack collides with the game object that has an enemy health script on it and how much damage the melee attack should deal if the game object the melee attack is striking should have less health when the melee attack collides with it. So let's call this second script that'll be located on the melee weapon prefab, Melee Weapon. And then last we're going to want to have a script on the player itself that'll control when input is detected and then make sure at the moment the input is detected the correct animations are playing for both the player and the melee weapon. And then last control how much horizontal and vertical force the player will move in when the melee attack occurs. Let's call this third script that'll be located on the player Melee Attack Manager. Let's open up all 3 of these scripts and we'll first get started with the enemy health script. With all 3 of these different scripts, I'll first discuss the variables and then I'll discuss how the different methods work. The first variable in the enemy health script is a serialized field private bool variable named damageable. By default, this variable is set to true and as long as this bool is true, this game object will receive damage when receiving a melee attack. The next variable is a serialized field private int variable named health amount. This will be how much health this game object has when at full value. The next variable is a serialized field private float variable named invulnerability time. This variable will be how long the game object needs to wait in between melee attacks before this game object can take damage again. This will make sure that this game object doesn't receive damage more than once from the same melee attack. Next I've set up a public bool variable named giveUpwardForce and this bool will determine whether or not the player can move upwards when performing a downward strike on this game object. Next I have a private bool variable named hit. This variable will work with the invulnerability time and as long as hit is set to false, this game object can receive damage. And then last we have a private int variable named currentHealth and this is of course going to represent how much health is on the game object at this current moment. Next we run the start method just so we can set current health to health amount which is of course going to give the GameObject max health when the scene loads. The next method I have is a damage method which receives an int parameter called amount and of course this method will handle negating the current health when a melee attack occurs. The very first thing this method is going to do is first check to see if this game object is damageable, which by default is set to true so it should be. But if the game object is some sort of platform or wall that will never die, then what we need to do is uncheck the damageable box in the inspector window for those game objects. so the player can still receive either horizontal or vertical force when melee attacking it. If this game object is damageable and is not currently in a hit state and the current health on this game object is greater than 0, then the first thing we want to do is set the hit bool to true, which will very temporarily stop this game object from receiving additional damage. Then we negate current health and the value of amount which is fed to this script from the melee weapon script when the melee weapon script calls this method. If the current health value is less than 0 after negating amount then at this point this game object will be in a dead state but in this tutorial environment all I do is cap off current health to zero and then make the game object inactive within the scene. In most games this will go ahead and run a dead method which will most likely run a death animation and then of course any other logic that would happen when an enemy dies. But all of that is outside of the scope of this tutorial. So we'll go ahead and continue with the solution. So after negating current health by amount, if current health is still greater than 0, then we run this co-routine called turn off hit. This co-routine is very simple. It'll wait in the amount of invulnerability time, which by default is 0.2 seconds. And then all it does is set hit back to false so that this game object can receive damage again. Now, of course, that's how the enemy health script is working. Let's next take a look at the melee weapon script. As mentioned I'll start off with the variables first and the first variable is going to be a serialized field private int variable named damage amount. By default I have this set to 20 but you can always change this value in the inspector window. And of course this value is going to represent how much current health gets negated every time the melee attack hits a game object. The next variable is a private reference to a script I have located on my player called character. For this solution and this script the character script contains the value of what direction the player is facing. and if the player is grounded or not. If you have a different script in your project that contains those values, go ahead and reference that script instead of the character script. At the very minimum to get this solution working, you do need to have a grounded state for your character, but if you don't have any value that determines whether or not you're facing right or left, There's a commented outline of code that can go ahead and at least tell you if you're facing right or left, but you will have to have some sort of solution to determine whether or not the characters grounded for this script to work. If you don't have any way of telling if the characters in the grounded state and aren't sure how to set that up, there's a link in the description of this video for my total jump solution tutorial in which I go over how to set that up. Go ahead and watch that tutorial if you need to do that first, but for everybody else let's keep going. The next private Rigidbody toD variable is going to reference the Rigidbody on the player. Then we reference the MeleeAttackManager as a private reference, which the MeleeAttackManager is going to contain a lot of values that this script needs to function. And I'll be going over the MeleeAttackManager script after this one. After that we have a private vector 2 variable named direction and this is going to tell the rigid body on the player what direction the player needs to move in when the melee attack collides with the game object. This next private bool variable named collided will allow the script that handles the rigid body calculations to basically run and perform those calculations. And then last we have a private bool variable named downward strike which will manage if the player should move upwards when a downward strike melee attack occurs. Next I run the start method which grabs the reference of the character, rigid body, and melee attack manager scripts on the player. The fixed update we'll be calling the handle movement method, which the handle movement method only runs if collided is true. I'll be going over the handle movement method very shortly. But underneath the fixed update method, we run this onTriggerEnterToD method. And if you're typing out the script, make sure you choose the onTriggerEnterToD method, not the onTriggerEnter method. Those are 2 different methods. But all the onTriggerEnterToD method is doing is checking to see if whatever game object the melee weapon is colliding with has an enemy health script attached to it. And if that game object does have an enemy health script on it, then it runs this method called handleCollision, which I'll go over next, and then feeds that method a parameter of the enemy health script on that game object. So let's take a look at the handleCollision method next. This method requires a parameter of enemy health that I named objHealth. The 3 different if statements will handle setting the direction as well as the collided bool, but I'll quickly explain how these if statements are working. The first if statement double checks to see if the enemy health script on that game object allows the player to move upwards when performing a downward strike, and then it confirms the input as well as the character grounded state. If all of that is true, then it'll go ahead and set direction to up, and then downward strike as well as collided to true, so that when the handle movement method runs next, it'll propel the player upwards. And the only way for this logic to run inside this if statement is if the player was performing a downward strike. But the reason we define the input this way is because the onTriggerEnter() method runs at the exact moment that this GameObject will collide with another one, which will be very slightly after the input's already been pressed, and so this is the way that I've come up with confirming input for this script at that exact moment the trigger enter happens. The if statement below this one will handle moving the player down when they strike up. This if statement has less conditional checks because there's no way to exploit the game by moving down and we want to protect the player from moving upwards when performing a downward strike because that has the potential to break the game by exploring areas too early. So if the melee attack collides with something when performing an upward strike, it sets the direction value to down and collided to true. And this last if statement, that checks to see if the vertical axis on the input is less than or equal to zero, and that the character is grounded, or if the vertical value for the get axis is actually 0, meaning you're not pressing up or down when performing a melee attack, then that means of course a frontward melee attack is occurring, and depending on what direction the player is facing, that'll go ahead and set the direction value to either left or right, but regardless of what direction the player is facing, it'll also set the collided bool to true. You may not have a variable in your project that represents whether or not the character is facing right or left. And if you don't, you can replace this if statement that says character dot is facing left with this commented outline of code that says transform dot parent dot local scale dot X less than 0. And if you want a solution that handles what direction your character is facing, then there's another tutorial I've included in the description of this video that goes over how to have a sprite face the direction that they're moving in. After the 3 different if statements we go ahead and run the damage method that we have on the enemy health script and we feed that script the int value of damage amount and then last we run this coroutine called no longer colliding. Before I go over the coroutine let me go ahead and talk about the handle movement method. Remember this method is being called by the fixed update method and despite this method constantly being called it doesn't actually perform any calculations unless collided is true. and if collided is true the first thing it does is check to see if downward strike is true and then of course if downward strike is true it'll go ahead and propel the player in the direction value which is set to up in the handle collision method when the downward strike value is true and the melee attack manager script has 2 different force values for upwards and default force values. The direction value is multiplied by the upwards force value, but if downward strike is not true, then it basically runs the same logic, but instead of direction being up, it'll either be down, left, or right, depending on which if statement in the handle collision method ran logic, and then it'll multiply the direction by the default force. Last we run this coroutine called no longer colliding which will wait in the amount of time of movement time and that's a value set up by the melee attack manager script. It's default value is 0.1 seconds and then after that time it'll go ahead and set the collided and downward strike bulls both to false. So as you can see the melee attack manager script does feed the melee weapon script a lot of the values. So let me quickly go over the melee attack manager script. As mentioned this script is going to have a lot of different values that the melee weapon script needs but it's also going to handle managing the animations between both the player and the melee weapon and then play those animations based on input detection. One thing I want to note that's different between the other 2 scripts that I've discussed is this script will inherit from my character script and not mono behavior so if you're unfamiliar with inheritance I've commented out some code that you can use if all your scripts are independent of each other and don't inherit from any kind of parent script like a character script. So if you're not familiar with inheritance, instead of this part saying character, go ahead and start typing out mono behavior and it should recognize it fairly quickly. But the first variable I have is a public float variable named default force. Its default value is set to 300. This will represent how much downwards or backwards force needs to be applied to the player when a melee attack hits a collidable object. The next public float variable named upwards force is how far up the player needs to go when the melee attack collides with the collidable object. And of course, this default value is set to 600. I have another public float variable named movement time, which is how long the player needs to move when the force is being applied. As you can see, it's a very small value set to 0.1 F. And the larger this value is, the further up or away the player will move when force is applied. Next, I have a private bull variable named melee attack. This variable is really just to help clean up the code a little bit, and it's going to determine whether or not the input is being pressed for a melee attack. The last non commented out variable I have is this private animator variable named melee animator. And this is going to be a reference to the animator component on the melee weapon itself. These next 2 commented out variables, anim and character, are variables already established on my character script. And I grab all those variable references through my initialization method I've set up on my character script. The initialization method on my character script acts as a start method for child scripts. So if your project doesn't have any parent character script, then you can go ahead and uncomment out these lines of code. For this script, the only thing I use the character script for is to determine whether or not the player is grounded. So if that value is being managed by a different script, other than a character script in your project, go ahead and reference whatever script manages the grounded state and then uncomment out everything from here to here so that you can run the start method and get all the references that I already have set up through the initialization method. So if you're running the start method in this script, you'll either need to comment out or delete the initialization method right beneath. But the only logic that I add to my initialization method that isn't set up by the character script is the reference to the melee animator, which is the animator component on the melee weapon. And I've got that set up in both the start and initialization methods. Regardless if you're running the start or initialization method for this script, The second method that runs in this script is the update method, which all the update method is doing is checking for different input. And I'll explain the input rather quickly because it's all fairly self-explanatory and it's all more or less running the exact same logic but for different directions. In my project, I went ahead and set the backspace up as the melee attack button. You can change this part that says keycode.backspace to whatever input that you would want for your project. But when this button is pressed, it'll go ahead and turn on the melee attack. The rest of these if statements are checking to see if the following is true. If the melee attack button is being pressed and the up button is also being pressed, then we play the upward melee attack on both the player and the melee weapon itself. If the melee attack button is pressed and the down button is being held down while the player is not grounded, then we run the animations on both the player and the melee weapon for a downward melee attack. But if melee attack is true and neither up or down is being pressed, or melee attack is true and down is being pressed when the character is grounded, then we run the animations to perform a forward melee attack on both the player and the melee weapon. That's all the different logic I've come up with to go ahead and have all this work. Next I'll show you how to set up a melee weapon prefab in Unity and how to add and manage the different animation states for both the player and the melee weapon. So let's go back into Unity. And let me show you how my player is set up as well as the melee weapon on the player. I've added the melee attack manager to the parent game object of the player. It currently has all the default values that I went over when discussing the script. But I've added 3 new animations to my player. The downwards melee attack, the melee attack, and the upwards melee attack animations. If you're unsure how to make IK based animations, I have a tutorial in the description of this video that goes over that. But these animations are only ten frames long, which is very short. I'm going to slowly scroll up through these animations so you can get a feel of how they look. But basically all they're doing is moving the left hand in the direction of the melee attack. Pause the video here if you need some time to make those 3 different animations for your character. But once you have your 3 different player melee attack animations, I'm next going to show you how to set up the swipe animations for the melee weapon. All the different child game objects of my 2D character are either the bones or the different sprites that make up the 2D character as well as IK points. But this very bottom prefab called melee weapon is the new game object I've added for this video. This melee weapon game object has an animator component on it. that'll manage and play the 3 different animations for the different directions the melee swipe can go in, as well as have the sprite render for those animations, and a 2D collider type that's needed for the melee weapons on trigger enter 2D method. Even though I chose a capsule collider 2D, you can choose any 2D collider type that you would want, but on whatever collider type that you choose, you need to make sure you check off this box is trigger. The last component on my melee weapon prefab is of course the melee weapon script, and it has the default value set up for it. If you need some time to go ahead and create a melee weapon type prefab with these similar components pause the video here. For the sprite renderer component, I actually don't have any sprites plugged in there. The 2 different sprites are managed through the animation themselves, as well as the transform for this game object, and the 2 decollider size and offset as well. In my project folder, I have the 2 different sprites that I use for all the different animations on the melee swipe, and even though I've already recorded these animations, let me show you how you can do that on your end. To create the animations, you'll need to open up the animation window, which if you click on the window dropdown, hover over animation and choose animation. And while you're doing this, you'll also want to go ahead and make an animator window as well. So go through the window dropdown, hover over animation again, and this time choose animator. If you don't have any melee swipe images, I've included these 2 images in my GitHub repository for you to download. But let me show you very quickly how to make a sprite based animation. If you haven't made any animations for this animator component yet, there will be a box in the middle of the animation window that says create new clip. Click on that and go ahead and save it in an appropriate place in your project folder for your different animations. But because I've already made some animations, I have to go through this drop down and click create new clip from here. And now we're looking at a fresh animation. Go ahead and drag whatever images you're using for your melee swipe from the project window into the animation window into the timeline here. And these 2 diagonal squares are called key frames. I'll probably be using that word again while making the animations, and that's what I mean by keyframes, but right now you probably don't see these sprites. That's because we need to make the image a lot bigger, as well as move the melee swipe in front of the player. For my project in the transform component, I have the X position set at seventeen point five and the Y position set at five, and then I have the scale in both the X and Y set to 7. So adjust the position and scale of your melee swipe so it makes sense for your character. Go ahead and pause the video here if you need a little bit more time. But once you have a good initial position for your melee swipe, drag the second keyframe to the 8th frame on the timeline. And now when you scrub through the timeline, you should see the first bigger sprite as the first 7 frames of the animation. And then on the 8th frame, the sprite is now the smaller image. Go ahead and copy that second keyframe on the 8th frame. Move the timeline to the 10th keyframe, and then go ahead and paste that keyframe on the 10th frame. And you can use Control C and V to copy and paste. Next, we'll need to add 2 new properties to the animation. So click this button that says Add Property to the Animation window, then expand it to your Collider-to-D type, and then choose both Size and Offset from here by clicking on the plus symbols to the right of those properties. Once you have both of the properties added to your animation, what we want to do is change the size and offset of the Collider II-D so that it covers the melee swipe. Before you make any initial changes, make sure frame 0 is selected in the timeline. And once you're working on frame 0, then we can go ahead and start working on the different size and offset for the Collider II-D. In my project, I have the offset X value set at negative point two five and the offset Y value set to 0. And then for the size on the Collider IID, I have the X set at five and the Y set to 3. But really all you're trying to do is make sure the Collider IID surrounds the swipe image. So find whatever values work best for your project if those aren't the best values. Once you have the size and offset on your Collider IID squared away, copy all the Collider IID keyframes you have in frame zero and then paste them in frame 7. Then in frame 8, when the smaller sprite is now the visible sprite, change all the values for the offset and size to 0. We want the Collider to be visible and around the swipe image when the melee attack would be occurring. But when the melee attack is over, then we want to basically remove the Collider to D from the animation. For my project, I've decided that the start of the second sprite is the end of the attack animation, and maybe you want to have the Collider-to-D for that image as well, so you can make the decision yourself if you want the melee attack to continue registering hits on the smaller sprite image, but really again all we're trying to do is during the melee attack we have the Collider visible and around the melee swipe, and then when the melee attack is over no longer have the Collider-to-D for the animation. But whatever keyframe is your last keyframe that can register a hit for the melee attack, you need to make sure you have the collider size and offset set back to 0, so that the melee attack can only register hits while the melee attack is occurring. Once you have a good forward melee attack, and you have all the keyframes mapped out for the sprite and collider type, go ahead and copy all those keyframes, Create a new animation and now that you've actually recorded an animation for this animator You'll need to click on the drop-down that has the animation name and select create new clip You'll need to create 2 new animations for both upwards and downwards melee swipes So go ahead and create 2 new animations for both of those swipe directions and this time I'll show you how to make an upwards or downwards melee swipe animation. The process is the exact same for both upwards and downwards, so once you've created and named both your new animations, go ahead and paste the keyframes you copied from your previous animation clip into the 2 new animation clips you made, And we'll be adding 2 new properties to both the upwards and downwards melee swipe. So go ahead and click add property again, expand next to the transform component, and select position and rotation this time. And go ahead and add position and rotation properties to both of the different animations. Next, make sure you're working on the 0 frame mark in the animation timeline window. Once you have the 0 frame selected in your animation window, let's start working on the rotation value first. For the upward melee swipe, we want the Z rotation value to be ninety, and then for the downward melee swipe we want the rotation Z value to be negative 90. Then go ahead and change the position if you need to. For my project in the upward melee swipe, I found that negative 2 was the best X value and 25 was the best Y value. And for the downward melee swipe, I found 2 was the best X value and negative 25 was the best Y value. But pause the video here if you need some extra time setting up your position and rotation values for your upwards and downwards melee swipe. Once you've worked out the keyframes for both position and rotation in both of the new animations you've just made, copy the position and rotation keyframes in the 0 frame mark, and then simply paste them in whatever frame is your last frame for your animation. If you've set everything up properly, your animations should look like this for upwards and downwards. If while you're scrubbing through your different animations, if you notice something moving or changing for either the Collider IID or Transform properties that shouldn't be changing for that frame, then you probably don't have your keyframe set up correctly. And for the upwards and downwards melee swipe, make sure your zero and last frames for the animations have the same values for position and rotation keyframes, and that none of the other frames in that animation have any keyframes for position and rotation. And then for the Collider IID keyframes, make sure the keyframe values at frame 0 match the keyframe values at frame 7. And if you still have the Collider at frame 8, make sure the keyframe values between eight and nine match each other. But at whatever frame that you want the animations to stop registering hits at, the size and offset for the Collider need to be set at 0. So pause the video here if you need some time to finish up your keyframes. But now we need to set up the animator component for both the player and the melee swipe. Let's work on the player first so select your player in the hierarchy window and then bring the animator window front and center. If you're unfamiliar with the animator component and how it works, the tutorial I mentioned earlier that goes over IK animations is a great start, but all I'm going to focus on for this tutorial is just how to set this up. And if you want a better understanding of how all this actually works, go ahead and watch that tutorial. But assuming you already made the 3 different animations for the player melee attack, you should see those 3 new animation clips in the animator window. What we want to do is set up 3 new trigger parameters to have these animations play when they're called. So at the top of the animator window, make sure you have the parameters tab selected, then click on this plus symbol to bring up a dropdown and choose trigger. We need 3 different trigger parameters for the animator window. And then we need to name these 3 different trigger parameters, the same name that we gave them in the melee attack manager script. And the solution that I went over earlier in this tutorial, I named these 3 different triggers, forward melee, upward melee, and downward melee. But it's important these parameter names match exactly as they are in the script, so you might want to open up the MeleeAttackManager script and then copy the orange text that you see for UpwardMelee, DownwardMelee, and ForwardMelee in the script and then paste them as the parameter names. Next we need to create a transition from the any state box to these 3 different animations. So right click on the any state box then select make transition and then make sure the any state box has a transition to all 3 of those different animations that we have on the player. In the middle of that white line that goes from the any state box to those 3 different animations there's a triangle. Go ahead and click on that triangle. Expand the settings. Make sure the option that says has exit time is unchecked. Make sure the transition duration is 0. Make sure this box can transition itself is also unchecked. Then scroll down this window a little bit until you get to where it says conditions. Go ahead and click the plus arrow to bring up the different conditions. And we want to match up the condition trigger for the correct animation clip. So for my melee attack animation, I should have the forward melee condition. The upwards melee attack should have the upward melee. And the downwards melee attack should have the downward melee. So go ahead and match up the different conditions in the transition to those animation states. And now what we want to do is have a transition from those animations to whatever is your default animation. For my project, the idle animation is the default animation. So right click on each of the 3 different animations and make a transition to whatever your default state is. Click on that triangle again in the animation transition line. We're going to expand the settings again, but this time make sure that each of the animations has exit time checked off. Make sure exit time is set to one, the fixed duration box is checked off, and the transition duration is set to 0 for all the different animation transitions to your default animation state. Once you have your player animation set up correctly, we'll next work on the melee weapon. The good news is is the process is basically the exact same, so let's click on the melee weapon in the hierarchy window to bring up the animator properties for the melee weapon. Just like we did for the player, We need to create 3 trigger parameters for the melee weapon and in this script I went over I named these 3 different trigger parameters as forward melee swipe upward melee swipe and downward melee swipe but again the exact spelling is important here so if you need to open up the melee attack manager script to copy those different parameter names go ahead and do that. Once you've created the 3 different trigger parameters, you'll need to create a default animation state for this animator, but the default animation state that we want is no animation whatsoever. So go ahead and right-click anywhere within the animator window that's not an animation state. Hover over Create State and then select Empty. I went ahead and named this empty animation state as nothing but you can go ahead and leave it as empty if you want. But now right click on this new empty state that you just created and then select set as default layer state. And this should turn this animation state to orange now. We need transitions from the nothing state to all the 3 different animation states that we made for the melee weapon. So right click on the nothing animation state and select make transition and then drag the transitions to the 3 different animation states we made for the melee swipes. For all 3 of the different transitions between nothing and the 3 different animations, uncheck the box for has exit time, set the transition duration to zero, and then go ahead and set up the matching condition for the different animation states. Pause the video here if you need some time to finish setting that up. Once you have the transition setup between the nothing state and the 3 different animation states we made for this tutorial setup correctly, we'll need to make animation transitions between the animation state back to the nothing box. So make a transition between the 3 different animation states back to the nothing box. And for these transitions, we want to make sure the has exit time box is selected, as well as exit time is set to one, and the fixed duration box is checked off. Just like for the player I'll quickly click through the different animation transitions so you can copy the settings I have on my end and make sure they match what you have on your end. There's one last thing we need to do for each animation that we made for this tutorial and that's to make sure that each animation isn't set to loop. Every animation you make in Unity is set to loop by default so you have to manually uncheck it for looping and you can either look for the different animations you made within the project window Or click on the animation states within the animator window. And at the top of the inspector window, you should see this option for motion. You can click on that to go ahead and find that animation within your project window automatically. Click on the animation clip in the project window to bring up that animation clip settings within the inspector window, and then uncheck the box for loop time for all 6 animations that we made for this tutorial. Pause the video here if you need some time to go ahead and do that. But now after all that work everything is finally set up and I'm going to quickly playtest to show you everything working. Let me quickly first describe the scene that you're looking at that I made specifically for this tutorial to test everything out. This game object to the left of the player represents something that can be damageable and I gave a health value of one too and everything else is the standard settings. These 5 different game objects that rise up like stairs are different platforms that I set up to test out my upward force so that when downward striking these different game objects the player moves up. This last game object extending from the floor to the ceiling to the right is a game object that doesn't give a player the option to go upwards when doing a downward strike and would represent basically any wall within the game. So the player will move backwards when striking horizontally but won't move at all when downward striking. Then of course any platform in this scene that doesn't have an enemy health script attached to it won't do anything when the player melee attack collides with it. So I'm going to hit play and test it out. first I'm going to do a downward swipe on this game object that would represent an enemy. And the player is of course forced upwards when the downward strike collides with the game object. The game object disappears from the scene because its current health is now less than 0. Now I'm going to do downward melee swipes across all these different game objects that look like stairs and the player bounces upwards when the downward melee strike connects with each game object. But now let me do a downward melee swipe on this game object to the far right and you'll see the player doesn't move when the downward melee strike connects with the game object. But if I'm standing and do a forward melee strike on that game object the player moves backwards. And for these other game objects I can also move backwards when striking forward. But I can also climb up them when doing a downward melee attack. Because the give upward force box is checked off for all these different stair light game objects. If you would want the player to bounce only on top of a game object, then what you would want to do is have 2 different game objects making up a prefab, place one of the game objects on top of the other, make the top game object a lot skinnier than the bottom game object, and then make the top game object have the give upward force box checked while the rest of the game object has that box unchecked for it. But that'll go ahead and do it for this tutorial. If I was able to teach you something new or you enjoyed the content, consider liking the video and leaving a comment. If you're not already subscribed to my channel, please also consider subscribing. And one last quick thing before I let you go. I have a course on Udemy that teaches you how to make a Metroidvania style game and goes over all the different popular features that you would normally see in a two D action platformer. I offer a discount to my course through my website. A link to my website is in the description of this tutorial. But that's enough self promotion for one video. I definitely appreciate you taking the time to watch my tutorial. And as always, stay safe and take care y'all.
+
+en el source code de silksong donde esta el attack code private bool CanAttackAction() { return !this.cState.attacking && (!this.cState.dashing || this.dashingDown) && !this.cState.dead && !this.cState.hazardDeath && !this.cState.hazardRespawning && !this.controlReqlinquished && this.hero_state != ActorStates.no_input && this.hero_state != ActorStates.hard_landing && this.hero_state != ActorStates.dash_landing && this.CanInput() && (!this.inputHandler.inputActions.Down.IsPressed || this.CanDownAttack()); } porque aqui se ven como las condiciones pero no el codigo
+
+// Token: 0x06000D87 RID: 3463 RVA: 0x0003F754 File Offset: 0x0003D954
+	private void Attack(AttackDirection attackDir)
+	{
+		this.TrySetCorrectFacing(true);
+		if (this.WarriorState.IsInRageMode)
+		{
+			this.warriorRageAttackAudioTable.SpawnAndPlayOneShot(this.transform.position, false);
+		}
+		else
+		{
+			this.attackAudioTable.SpawnAndPlayOneShot(this.transform.position, false);
+		}
+		this.cState.floating = false;
+		this.IncrementAttackCounter();
+		this.UpdateConfig();
+		if (Time.timeSinceLevelLoad - this.altAttackTime > this.Config.AttackRecoveryTime + this.ALT_ATTACK_RESET || attackDir != this.prevAttackDir)
+		{
+			this.cState.altAttack = false;
+		}
+		if (attackDir != AttackDirection.downward || this.Config.DownSlashType != HeroControllerConfig.DownSlashTypes.DownSpike)
+		{
+			this.cState.attacking = true;
+			this.attackDuration = this.Config.AttackDuration;
+			if (this.IsUsingQuickening)
+			{
+				this.attackDuration *= 1f / this.Config.QuickAttackSpeedMult;
+			}
+		}
+		bool flag = true;
+		if (this.wandererDashComboWindowTimer > 0f && this.playerData.CurrentCrestID == "Wanderer")
+		{
+			this.sprintFSM.SendEvent("WANDERER DASH COMBO");
+			return;
+		}
+		if ((this.cState.wallSliding || this.cState.wallScrambling) && attackDir == AttackDirection.normal && !Gameplay.ToolmasterCrest.IsEquipped)
+		{
+			if (this.Config.WallSlashSlowdown)
+			{
+				this.rb2d.SetVelocity(new float?(this.rb2d.linearVelocity.x), new float?(this.rb2d.linearVelocity.y / 2f));
+				if (this.rb2d.linearVelocity.y < -5f)
+				{
+					this.rb2d.SetVelocity(new float?(this.rb2d.linearVelocity.x), new float?((float)(-5)));
+				}
+			}
+			this.wallSlashing = true;
+			this.SlashComponent = this.wallSlash;
+			this.currentSlashDamager = this.wallSlashDamager;
+		}
+		else
+		{
+			if ((this.cState.wallSliding || this.cState.wallScrambling) && attackDir == AttackDirection.normal && Gameplay.ToolmasterCrest.IsEquipped)
+			{
+				this.FlipSprite();
+				this.CancelWallsliding();
+			}
+			this.wallSlashing = false;
+			switch (attackDir)
+			{
+			case AttackDirection.normal:
+				if (this.cState.altAttack)
+				{
+					this.SlashComponent = this.alternateSlash;
+					this.currentSlashDamager = this.alternateSlashDamager;
+					this.cState.altAttack = false;
+				}
+				else
+				{
+					this.SlashComponent = this.normalSlash;
+					this.currentSlashDamager = this.normalSlashDamager;
+					if (this.alternateSlash)
+					{
+						this.cState.altAttack = true;
+					}
+				}
+				break;
+			case AttackDirection.upward:
+				if (this.cState.wallSliding)
+				{
+					this.rb2d.MovePosition(this.rb2d.position + new Vector2(this.cState.facingRight ? (-0.8f) : 0.8f, 0f));
+				}
+				this.AttackCancelWallSlide();
+				if (this.cState.altAttack)
+				{
+					this.SlashComponent = this.altUpSlash;
+					this.currentSlashDamager = this.altUpSlashDamager;
+					this.cState.altAttack = false;
+				}
+				else
+				{
+					this.SlashComponent = this.upSlash;
+					this.currentSlashDamager = this.upSlashDamager;
+					if (this.altUpSlash)
+					{
+						this.cState.altAttack = true;
+					}
+				}
+				this.cState.upAttacking = true;
+				break;
+			case AttackDirection.downward:
+				this.AttackCancelWallSlide();
+				this.DownAttack(ref flag);
+				break;
+			default:
+				throw new ArgumentOutOfRangeException("attackDir", attackDir, null);
+			}
+		}
+		if (flag)
+		{
+			if (this.cState.wallSliding || this.cState.wallScrambling)
+			{
+				if (this.cState.facingRight)
+				{
+					this.currentSlashDamager.SetDirection(180f);
+				}
+				else
+				{
+					this.currentSlashDamager.SetDirection(0f);
+				}
+			}
+			else if (attackDir == AttackDirection.normal && this.cState.facingRight)
+			{
+				this.currentSlashDamager.SetDirection(0f);
+			}
+			else if (attackDir == AttackDirection.normal && !this.cState.facingRight)
+			{
+				this.currentSlashDamager.SetDirection(180f);
+			}
+			else if (attackDir == AttackDirection.upward)
+			{
+				this.currentSlashDamager.SetDirection(90f);
+			}
+			else
+			{
+				this.currentSlashDamager.SetDirection(270f);
+			}
+			this.altAttackTime = Time.timeSinceLevelLoad;
+			this.SlashComponent.StartSlash();
+			this.DidAttack();
+		}
+		this.prevAttackDir = attackDir;
+	}
+
+	// Token: 0x06000D88 RID: 3464 RVA: 0x0003FBE2 File Offset: 0x0003DDE2
+	private void AttackCancelWallSlide()
+	{
+		if (!this.cState.wallSliding)
+		{
+			return;
+		}
+		this.FlipSprite();
+		this.CancelWallsliding();
+	}
+
+	// Token: 0x06000D89 RID: 3465 RVA: 0x0003FBFE File Offset: 0x0003DDFE
+	public void QueueCancelDownAttack()
+	{
+		this.tryCancelDownSlash = true;
+		this._slashComponent = this.downSlash;
+	}
+
+	// Token: 0x06000D8A RID: 3466 RVA: 0x0003FC14 File Offset: 0x0003DE14
+	private void DownAttack(ref bool isSlashing)
+	{
+		this.CancelQueuedBounces();
+		switch (this.Config.DownSlashType)
+		{
+		case HeroControllerConfig.DownSlashTypes.DownSpike:
+		{
+			isSlashing = false;
+			if (this.transform.localScale.x > 0f)
+			{
+				this.downSpikeHorizontalSpeed = -this.Config.DownspikeSpeed;
+			}
+			else
+			{
+				this.downSpikeHorizontalSpeed = this.Config.DownspikeSpeed;
+			}
+			Vector2 linearVelocity = this.rb2d.linearVelocity;
+			if (this.Config.DownspikeThrusts)
+			{
+				this.RelinquishControl();
+				linearVelocity.y = Mathf.Clamp(linearVelocity.y, this.DOWNSPIKE_ANTIC_CLAMP_VEL_Y.Start, this.DOWNSPIKE_ANTIC_CLAMP_VEL_Y.End);
+				this.AffectedByGravity(false);
+			}
+			else
+			{
+				this.CancelJump();
+				if (linearVelocity.y > 0f)
+				{
+					linearVelocity.y = 0f;
+				}
+			}
+			this.cState.downSpikeAntic = true;
+			this.downSpikeTimer = 0f;
+			if (this.cState.altAttack)
+			{
+				this.currentDownspike = this.altDownSpike;
+				this.cState.altAttack = false;
+			}
+			else
+			{
+				this.currentDownspike = this.downSpike;
+				if (this.altDownSpike)
+				{
+					this.cState.altAttack = true;
+				}
+			}
+			this.rb2d.linearVelocity = linearVelocity;
+			this.DidAttack();
+			return;
+		}
+		case HeroControllerConfig.DownSlashTypes.Slash:
+			if (this.cState.altAttack)
+			{
+				this.SlashComponent = this.altDownSlash;
+				this.currentSlashDamager = this.altDownSlashDamager;
+				this.cState.altAttack = false;
+			}
+			else
+			{
+				this.SlashComponent = this.downSlash;
+				this.currentSlashDamager = this.downSlashDamager;
+				if (this.altDownSlash)
+				{
+					this.cState.altAttack = true;
+				}
+			}
+			this.cState.downAttacking = true;
+			return;
+		case HeroControllerConfig.DownSlashTypes.Custom:
+			isSlashing = false;
+			this.crestAttacksFSM.SendEvent(this.Config.DownSlashEvent);
+			this.DidAttack();
+			return;
+		default:
+			throw new NotImplementedException();
+		}
+	}
+
+	// Token: 0x06000D8B RID: 3467 RVA: 0x0003FE04 File Offset: 0x0003E004
+	private void DidAttack()
+	{
+		float num = this.Config.AttackDuration;
+		this.attack_cooldown = (this.IsUsingQuickening ? this.Config.QuickAttackCooldownTime : this.Config.AttackCooldownTime);
+		if (this.attack_cooldown < num)
+		{
+			this.attack_cooldown = num;
+		}
+	}
+
+	// Token: 0x06000D8C RID: 3468 RVA: 0x0003FE54 File Offset: 0x0003E054
+	private void Dash()
+	{
+		if (this.CanWallSlide())
+		{
+			this.BeginWallSlide(false);
+			return;
+		}
+		this.AffectedByGravity(false);
+		HeroActions inputActions = this.inputHandler.inputActions;
+		bool flag = this.dashingDown;
+		if (this.cState.onGround)
+		{
+			this.dashingDown = false;
+		}
+		this.cState.mantleRecovery = false;
+		if (this.dashingDown)
+		{
+			this.cState.falling = true;
+		}
+		if (this.dash_timer <= 0f && (!this.dashingDown || !inputActions.Dash.IsPressed))
+		{
+			this.FinishedDashing(flag);
+			return;
+		}
+		float dash_SPEED = this.DASH_SPEED;
+		if (this.dashingDown)
+		{
+			float maxFallVelocity = this.GetMaxFallVelocity();
+			this.rb2d.linearVelocity = new Vector2(0f, -maxFallVelocity);
+		}
+		else
+		{
+			this.heroBox.HeroBoxAirdash();
+			if (this.cState.facingRight)
+			{
+				this.rb2d.linearVelocity = new Vector2(dash_SPEED, 0f);
+				this.CheckForBump(CollisionSide.right);
+			}
+			else
+			{
+				this.rb2d.linearVelocity = new Vector2(-dash_SPEED, 0f);
+				this.CheckForBump(CollisionSide.left);
+			}
+		}
+		this.dash_timer -= Time.deltaTime;
+		this.dash_time += Time.deltaTime;
+	}
+

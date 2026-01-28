@@ -1,0 +1,74 @@
+using UnityEngine;
+using System.Collections;
+
+public class DashController : MonoBehaviour
+{
+    [Header("Dash Settings")]
+    [SerializeField] private float dashSpeed = 20f;
+    [SerializeField] private float dashDuration = 0.2f;
+    [SerializeField] private float dashCooldown = 0.1f;
+
+    private Rigidbody2D rb;
+    private GatherInput input;
+    private PlayerState state;
+
+    private float dashTimer;
+    private float cooldownTimer;
+    private int dashDirection;
+
+    private void Awake()
+    {
+        rb = GetComponent<Rigidbody2D>();
+        input = GetComponent<GatherInput>();
+        state = GetComponent<PlayerState>();
+    }
+
+    private void Update()
+    {
+        cooldownTimer -= Time.deltaTime;
+
+        if (CanDash())
+        {
+            StartDash();
+        }
+    }
+
+    private bool CanDash()
+    {
+        if (state.dashing) return false;
+        if (state.attacking) return false;
+        if (state.recoiling) return false;
+        if (state.controlLocked) return false;
+        if (cooldownTimer > 0f) return false;
+
+        return input.IsDashing;
+    }
+
+    private void StartDash()
+    {
+        state.dashing = true;
+        dashTimer = dashDuration;
+        cooldownTimer = dashCooldown;
+
+        dashDirection = transform.localScale.x > 0 ? 1 : -1;
+    }
+
+    private void FixedUpdate()
+    {
+        if (!state.dashing) return;
+
+        rb.linearVelocity = new Vector2(dashDirection * dashSpeed, 0f);
+
+        dashTimer -= Time.fixedDeltaTime;
+
+        if (dashTimer <= 0f)
+        {
+            EndDash();
+        }
+    }
+
+    private void EndDash()
+    {
+        state.dashing = false;
+    }
+}

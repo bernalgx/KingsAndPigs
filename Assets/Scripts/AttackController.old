@@ -1,0 +1,81 @@
+using UnityEngine;
+using System.Collections;
+
+public class AttackController : MonoBehaviour
+{
+    [Header("Attack Settings")]
+    [SerializeField] private float attackDuration = 0.15f;
+    [SerializeField] private float attackCooldown = 0.1f;
+
+    private PlayerState state;
+    private GatherInput input;
+    private Animator animator;
+
+    private float cooldownTimer;
+
+    private void Awake()
+    {
+        state = GetComponent<PlayerState>();
+        input = GetComponent<GatherInput>();
+        animator = GetComponent<Animator>();
+    }
+
+    private void Update()
+    {
+        cooldownTimer -= Time.deltaTime;
+
+        if (CanAttack())
+        {
+            DoAttack();
+        }
+    }
+
+    private bool CanAttack()
+    {
+        if (state.attacking) return false;
+        if (state.dashing) return false;
+        if (state.recoiling) return false;
+        if (state.controlLocked) return false;
+        if (cooldownTimer > 0f) return false;
+
+        return input.IsAttacking;
+    }
+
+    private void DoAttack()
+    {
+        state.attacking = true;
+        cooldownTimer = attackCooldown;
+
+        ResolveAttackDirection();
+
+        StartCoroutine(AttackRoutine());
+    }
+
+    private void ResolveAttackDirection()
+    {
+        if (input.Value.y > 0)
+        {
+            // Up attack
+            animator.SetTrigger("AttackUp");
+        }
+        else if (input.Value.y < 0 && !state.wallSliding)
+        {
+            // Down attack (air only)
+            state.downAttacking = true;
+            animator.SetTrigger("AttackDown");
+        }
+        else
+        {
+            // Normal attack
+            animator.SetTrigger("Attack");
+        }
+    }
+
+    private IEnumerator AttackRoutine()
+    {
+        yield return new WaitForSeconds(attackDuration);
+
+        state.attacking = false;
+        state.downAttacking = false;
+    }
+}

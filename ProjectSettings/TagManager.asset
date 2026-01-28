@@ -14,7 +14,7 @@ TagManager:
   - Player
   - Ground
   - Ignore
-  - 
+  - Items
   - 
   - 
   - 
@@ -52,6 +52,9 @@ TagManager:
     locked: 0
   - name: Player
     uniqueID: 1778798375
+    locked: 0
+  - name: Items
+    uniqueID: 3622425297
     locked: 0
   m_RenderingLayers:
   - Default

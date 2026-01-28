@@ -15,6 +15,13 @@ public class GatherInput : MonoBehaviour
 	public bool IsJumping { get => _isJumping; set => _isJumping = value; }
 	public bool IsJumpHeld => _isJumpHeld;
 
+	[SerializeField] private bool _isAttacking;
+	public bool IsAttacking => _isAttacking;
+
+	[SerializeField] private bool _isDashing;
+	public bool IsDashing => _isDashing;
+
+
 
 
 	private void Awake()
@@ -28,6 +35,12 @@ public class GatherInput : MonoBehaviour
 		controls.Player.Move.canceled += StopMove;
 		controls.Player.Jump.performed += StartJump;
 		controls.Player.Jump.canceled += StopJump;
+		controls.Player.Attack.performed += StartAttack;
+		controls.Player.Attack.canceled += StopAttack;
+		controls.Player.Dash.performed += StartDash;
+		controls.Player.Dash.canceled += StopDash;
+
+
 		controls.Player.Enable();
 	}
 
@@ -60,14 +73,82 @@ public class GatherInput : MonoBehaviour
 		_isJumpHeld = false; // 👈 solo suelta
 	}
 
+	private void StartAttack(InputAction.CallbackContext context)
+	{
+		_isAttacking = true;
+	}
+
+	private void StopAttack(InputAction.CallbackContext context)
+	{
+		_isAttacking = false;
+	}
+
+	private void StartDash(InputAction.CallbackContext context)
+	{
+		_isDashing = true;
+	}
+
+	private void StopDash(InputAction.CallbackContext context)
+	{
+		_isDashing = false;
+	}
+
+
+
 	private void OnDisable()
 	{
 		controls.Player.Move.performed -= StartMove;
 		controls.Player.Move.canceled -= StopMove;
 		controls.Player.Jump.performed -= StartJump;
 		controls.Player.Jump.canceled -= StopJump;
+		controls.Player.Attack.performed -= StartAttack;
+		controls.Player.Attack.canceled -= StopAttack;
+		controls.Player.Dash.performed -= StartDash;
+		controls.Player.Dash.canceled -= StopDash;
+
+
 		controls.Player.Disable();
 	}
+
+
+	// ================================
+	// FSM / State Pattern Adapter
+	// ================================
+
+	// Movimiento horizontal para FSM
+	public float Move => Value.x;
+
+	// Input de salto (pressed este frame)
+	public bool JumpPressed
+	{
+		get
+		{
+			if (_isJumping)
+			{
+				_isJumping = false; // consume el input (edge)
+				return true;
+			}
+			return false;
+		}
+	}
+
+	// Ataque (pressed)
+	public bool AttackPressed
+	{
+		get
+		{
+			if (_isAttacking)
+			{
+				_isAttacking = false; // consume
+				return true;
+			}
+			return false;
+		}
+	}
+
+	// Casteo (puedes mapearlo luego a otro action)
+	public bool CastPressed => false; // stub por ahora
+
 
 
 }

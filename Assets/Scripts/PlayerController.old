@@ -1,9 +1,14 @@
 ﻿using System;
 using System.Collections;
 using UnityEngine;
+using UnityEngine.Playables;
+
 
 public class PlayerController : MonoBehaviour
 {
+
+	private PlayerState state;
+
 
 	// 1. CONFIG / SETTINGS (Serialized Fields)
 	// 2. STATE (runtime variables)
@@ -96,10 +101,20 @@ public class PlayerController : MonoBehaviour
 
 	private void Awake()
 	{
+		m_transform = transform;
 		m_gatherInput = GetComponent<GatherInput>();
-		//m_transform = transform;
 		m_rigidbody2D = GetComponent<Rigidbody2D>();
 		m_animator = GetComponent<Animator>();
+		state = GetComponent<PlayerState>();
+
+		if (state == null)
+			Debug.LogError("❌ PlayerState missing", this);
+
+		if (m_gatherInput == null)
+			Debug.LogError("❌ GatherInput missing", this);
+
+		if (m_rigidbody2D == null)
+			Debug.LogError("❌ Rigidbody2D missing", this);
 	}
 
 
@@ -113,8 +128,6 @@ public class PlayerController : MonoBehaviour
 		lFoot = GameObject.Find("LFoot").GetComponent<Transform>();
 		rFoot = GameObject.Find("RFoot").GetComponent<Transform>();
 		counterExtraJumps = extraJumps;
-		GameManager.instance.AddScore();
-
 	}
 
 	void Update()
@@ -130,9 +143,30 @@ public class PlayerController : MonoBehaviour
 	}
 
 	// Update is called once per frame
+	//void FixedUpdate()
+	//{
+	//	if (isKnocked) return;
+	//	CheckCollision();
+	//	UpdateCoyoteTime();
+	//	UpdateJumpBuffer();
+	//	Move();
+	//	ApplyAirMomentum();
+	//	Jump();
+	//	ApplyBetterJumpGravity();
+	//}
+
+
+	// USing states
 	void FixedUpdate()
 	{
+
+		if (state == null) return;
+
+		if (state.dashing) return;
+		if (state.attacking) return;
+		if (state.controlLocked) return;
 		if (isKnocked) return;
+
 		CheckCollision();
 		UpdateCoyoteTime();
 		UpdateJumpBuffer();
@@ -188,25 +222,41 @@ public class PlayerController : MonoBehaviour
 		isWallDetected = Physics2D.Raycast(m_transform.position, Vector2.right * direction, checkWallDistance, groundLayer);
 	}
 
+	//private void HandleWallSlide()
+	//{
+	//	// Solo wall slide si:
+	//	// - hay pared
+	//	// - no estás en el suelo
+	//	// - estás cayendo (o en el tope del salto)
+	//	if (!isWallDetected) return;
+	//	if (isGrounded) return;
+	//	if (m_rigidbody2D.linearVelocityY > 0) return;
+
+	//	canWallSlide = true;
+
+	//	slideSpeed = m_gatherInput.Value.y < 0 ? 1f : 0.5f;
+	//	m_rigidbody2D.linearVelocity =
+	//		new Vector2(
+	//			m_rigidbody2D.linearVelocityX,
+	//			m_rigidbody2D.linearVelocityY * slideSpeed
+	//		);
+	//}
+
+
 	private void HandleWallSlide()
 	{
-		// Solo wall slide si:
-		// - hay pared
-		// - no estás en el suelo
-		// - estás cayendo (o en el tope del salto)
-		if (!isWallDetected) return;
-		if (isGrounded) return;
-		if (m_rigidbody2D.linearVelocityY > 0) return;
+		if (state.dashing) return;
 
-		canWallSlide = true;
+		if (!isWallDetected || isGrounded || m_rigidbody2D.linearVelocityY > 0)
+		{
+			state.wallSliding = false;
+			return;
+		}
 
-		slideSpeed = m_gatherInput.Value.y < 0 ? 1f : 0.5f;
-		m_rigidbody2D.linearVelocity =
-			new Vector2(
-				m_rigidbody2D.linearVelocityX,
-				m_rigidbody2D.linearVelocityY * slideSpeed
-			);
+		state.wallSliding = true;
+
 	}
+
 
 
 	private void Move()
