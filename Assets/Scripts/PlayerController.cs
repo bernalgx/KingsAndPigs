@@ -24,6 +24,8 @@ public class PlayerController : MonoBehaviour
 	[Header("Spell - Lapa")]
 	[SerializeField] private float spellCooldown = 0.6f;
 	private float spellCooldownTimer;
+	private float jumpDirBufferTimer;
+
 
 
 	[Header("Components")]
@@ -38,6 +40,9 @@ public class PlayerController : MonoBehaviour
 	[SerializeField] private Vector2 attackBoxOffset = new Vector2(0.8f, 0f);
 	[SerializeField] private LayerMask enemyLayer;
 
+	// 🔥 Jump direction buffer (HK style)
+	private float jumpDirBuffer;
+	[SerializeField] private float jumpDirBufferTime = 0.1f;
 
 	private bool isAttacking;
 
@@ -64,6 +69,8 @@ public class PlayerController : MonoBehaviour
 
 	[Header("Air Momentum")]
 	[SerializeField] private float airMomentumDecay = 3f;
+	private bool lockHorizontalOneFrame;
+
 
 	private float airMomentumX;
 	private bool hasAirMomentum;
@@ -230,7 +237,13 @@ public class PlayerController : MonoBehaviour
 		if (!m_gatherInput.IsDashing) return;
 		if (isDashing) return;
 		if (dashCooldownTimer > 0) return;
-		if (!isGrounded && airDashCount >= maxAirDashes) return;
+
+		// 🔒 BLOQUEO de dash aéreo (consume input SIEMPRE)
+		if (!isGrounded && airDashCount >= maxAirDashes)
+		{
+			m_gatherInput.IsDashing = false;
+			return;
+		}
 
 		// cancelar ataque si existe
 		if (isAttacking)
@@ -243,6 +256,7 @@ public class PlayerController : MonoBehaviour
 
 		StartCoroutine(DashRoutine());
 	}
+
 
 	private void HandleAttack()
 	{
@@ -307,14 +321,28 @@ public class PlayerController : MonoBehaviour
 	void FixedUpdate()
 	{
 
+		// buffer de dirección horizontal
+		if (Mathf.Abs(m_gatherInput.Value.x) > 0.01f)
+		{
+			jumpDirBuffer = m_gatherInput.Value.x;
+			jumpDirBufferTimer = jumpDirBufferTime;
+		}
+		else
+		{
+			jumpDirBufferTimer -= Time.fixedDeltaTime;
+		}
+
+
+
 		if (ignoreGravityOneFrame)
 		{
 			ignoreGravityOneFrame = false;
-			return; // 🔥 NO gravedad, NO física este frame
+			return;
 		}
 
 		if (isDashing) return;
 		if (isKnocked) return;
+
 		CheckCollision();
 		UpdateCoyoteTime();
 		UpdateJumpBuffer();
@@ -323,6 +351,7 @@ public class PlayerController : MonoBehaviour
 		Jump();
 		ApplyBetterJumpGravity();
 	}
+
 
 
 	private void UpdateCoyoteTime()
@@ -352,19 +381,26 @@ public class PlayerController : MonoBehaviour
 	{
 		lFootRay = Physics2D.Raycast(lFoot.position, Vector2.down, rayLength, groundLayer);
 		rFootRay = Physics2D.Raycast(rFoot.position, Vector2.down, rayLength, groundLayer);
+		bool wasGrounded = isGrounded;
+
 		if (lFootRay || rFootRay)
 		{
 			isGrounded = true;
 			counterExtraJumps = extraJumps;
 			canDoubleJump = false;
 
-			airDashCount = 0; // 🔥 reset dash aéreo
+			// 🔒 SOLO al aterrizar de verdad
+			if (!wasGrounded)
+			{
+				airDashCount = 0;
+			}
 		}
 		else
 		{
 			isGrounded = false;
 			canDoubleJump = true;
 		}
+
 	}
 
 	private void HandleWall()
@@ -374,39 +410,73 @@ public class PlayerController : MonoBehaviour
 
 	private void HandleWallSlide()
 	{
-		// Solo wall slide si:
-		// - hay pared
-		// - no estás en el suelo
-		// - estás cayendo (o en el tope del salto)
 		if (!isWallDetected) return;
 		if (isGrounded) return;
 		if (m_rigidbody2D.linearVelocityY > 0) return;
 
-		canWallSlide = true;
+		// velocidad base de wall slide (pegado)
+		float wallSlideSpeed = -2.5f; // ajusta fino aquí
 
-		slideSpeed = m_gatherInput.Value.y < 0 ? 1f : 0.5f;
+		// si presiona abajo, cae más rápido
+		if (m_gatherInput.Value.y < 0)
+		{
+			wallSlideSpeed = -6f; // caída rápida
+		}
+
 		m_rigidbody2D.linearVelocity =
 			new Vector2(
 				m_rigidbody2D.linearVelocityX,
-				m_rigidbody2D.linearVelocityY * slideSpeed
+				wallSlideSpeed
 			);
 	}
 
 
+
+
 	private void Move()
 	{
-
-		if (isWallDetected && m_gatherInput.Value.x == direction)
+		if (lockHorizontalOneFrame)
+		{
+			lockHorizontalOneFrame = false;
 			return;
+		}
 
-		//if (isWallDetected && !isGrounded) return;
 		if (isWallJumping) return;
 
+		float inputX = m_gatherInput.Value.x;
+
+		// ¿está empujando contra la pared?
+		bool pushingIntoWall =
+			isWallDetected &&
+			inputX == direction;
+
+		float airControlMultiplier = 1f;
+
+		if (!isGrounded)
+		{
+			// control aéreo base (HK feel)
+			airControlMultiplier = 0.8f;
+
+			// 🔥 CLAVE: si empuja contra la pared, se frena MUCHO
+			if (pushingIntoWall)
+			{
+				airControlMultiplier = 0.3f;
+			}
+		}
+
+		float targetSpeed = speed * inputX * airControlMultiplier;
+
 		Flip();
+
 		m_rigidbody2D.linearVelocity =
-			new Vector2(speed * m_gatherInput.Value.x,
-						m_rigidbody2D.linearVelocityY);
+			new Vector2(
+				targetSpeed,
+				m_rigidbody2D.linearVelocityY
+			);
 	}
+
+
+
 
 	private void Flip()
 	{
@@ -439,6 +509,12 @@ public class PlayerController : MonoBehaviour
 		// 🔹 3. Entrar en dash
 		isDashing = true;
 		dashCooldownTimer = dashCooldown;
+
+		// 🔥 CONTAR DASH AÉREO
+		if (!isGrounded)
+		{
+			airDashCount++;
+		}
 
 		m_animator.SetBool("isDashing", true);
 
@@ -550,13 +626,22 @@ public class PlayerController : MonoBehaviour
 		// 2️⃣ Ejecutamos el salto cuando sea válido
 		if (coyoteTimer > 0)
 		{
+			float jumpX = (jumpDirBufferTimer > 0f)
+	? Mathf.Sign(jumpDirBuffer)
+	: Mathf.Sign(m_gatherInput.Value.x);
+
+			if (jumpX == 0)
+				jumpX = direction;
+
+
+
 			m_rigidbody2D.linearVelocity =
-				new Vector2(m_rigidbody2D.linearVelocityX, jumpForce);
+				new Vector2(jumpX * speed, jumpForce);
 
 			canDoubleJump = true;
-
 			ConsumeJump();
 		}
+
 		else if (isWallDetected)
 		{
 			WallJump();
@@ -593,6 +678,7 @@ public class PlayerController : MonoBehaviour
 			hasAirMomentum = false;
 		}
 	}
+
 
 	private IEnumerator AttackRoutine()
 	{
@@ -633,17 +719,17 @@ public class PlayerController : MonoBehaviour
 
 	private void ConsumeJump()
 	{
+		// bloquear X solo este frame
+		//lockHorizontalOneFrame = true;
+		jumpDirBufferTimer = 0f;
 
-		// Capturamos el impulso horizontal ACTUAL
-		airMomentumX = m_rigidbody2D.linearVelocityX;
-		hasAirMomentum = Mathf.Abs(airMomentumX) > 0.01f;
-
-		jumpBufferTimer = 0;
-		coyoteTimer = 0;
+		jumpBufferTimer = 0f;
+		coyoteTimer = 0f;
 		m_gatherInput.IsJumping = false;
 
 		jumpLockUntil = Time.time + jumpLockDuration;
 	}
+
 
 
 
