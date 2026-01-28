@@ -15,6 +15,18 @@ public class GatherInput : MonoBehaviour
 	public bool IsJumping { get => _isJumping; set => _isJumping = value; }
 	public bool IsJumpHeld => _isJumpHeld;
 
+	[SerializeField] private bool _isAttacking;
+	public bool IsAttacking { get => _isAttacking; set => _isAttacking = value; }
+
+	[SerializeField] private bool _isDashing;
+	public bool IsDashing { get => _isDashing; set => _isDashing = value; }
+
+	[SerializeField] private bool _isSpelling;
+	public bool IsSpelling { get => _isSpelling; set => _isSpelling = value; }
+
+
+
+
 
 
 	private void Awake()
@@ -28,6 +40,16 @@ public class GatherInput : MonoBehaviour
 		controls.Player.Move.canceled += StopMove;
 		controls.Player.Jump.performed += StartJump;
 		controls.Player.Jump.canceled += StopJump;
+		controls.Player.Attack.performed += StartAttack;
+		controls.Player.Attack.canceled += StopAttack;
+		controls.Player.Dash.performed += StartDash;
+		controls.Player.Dash.canceled += StopDash;
+		controls.Player.Spell.performed += StartSpell;
+		controls.Player.Spell.canceled += StopSpell;
+
+
+
+
 		controls.Player.Enable();
 	}
 
@@ -41,6 +63,28 @@ public class GatherInput : MonoBehaviour
 		// Si quieres asegurarte de que nunca sea 0 en esta función, puedes usar:
 		// _valueX = rawValue > 0 ? 1 : -1; 
 	}
+
+	private void StartSpell(InputAction.CallbackContext context)
+	{
+		_isSpelling = true;
+	}
+
+	private void StopSpell(InputAction.CallbackContext context)
+	{
+		// igual que attack/dash: lo consume el PlayerController
+	}
+
+
+	private void StartDash(InputAction.CallbackContext context)
+	{
+		_isDashing = true;
+	}
+
+	private void StopDash(InputAction.CallbackContext context)
+	{
+		// no lo apagamos aquí, lo consume PlayerController
+	}
+
 
 	private void StopMove(InputAction.CallbackContext context)
 	{
@@ -60,14 +104,34 @@ public class GatherInput : MonoBehaviour
 		_isJumpHeld = false; // 👈 solo suelta
 	}
 
+	private void StartAttack(InputAction.CallbackContext context)
+	{
+		_isAttacking = true;
+	}
+
+	private void StopAttack(InputAction.CallbackContext context)
+	{
+		// no lo apagamos aquí, lo consume el PlayerController
+	}
+
+
 	private void OnDisable()
 	{
 		controls.Player.Move.performed -= StartMove;
 		controls.Player.Move.canceled -= StopMove;
+
 		controls.Player.Jump.performed -= StartJump;
 		controls.Player.Jump.canceled -= StopJump;
+
+		controls.Player.Attack.performed -= StartAttack;
+		controls.Player.Attack.canceled -= StopAttack;
+
+		controls.Player.Spell.performed -= StartSpell;
+		controls.Player.Spell.canceled -= StopSpell;
+
 		controls.Player.Disable();
 	}
+
 
 
 }

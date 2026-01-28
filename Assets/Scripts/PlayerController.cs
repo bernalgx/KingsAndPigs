@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using UnityEngine;
+using static UnityEngine.EventSystems.EventTrigger;
 
 public class PlayerController : MonoBehaviour
 {
@@ -18,7 +19,11 @@ public class PlayerController : MonoBehaviour
 	// 11. DEBUG
 
 
-
+	[SerializeField] private GameObject lapaMissilePrefab;
+	[SerializeField] private Transform spellSpawnPoint;
+	[Header("Spell - Lapa")]
+	[SerializeField] private float spellCooldown = 0.6f;
+	private float spellCooldownTimer;
 
 
 	[Header("Components")]
@@ -26,6 +31,23 @@ public class PlayerController : MonoBehaviour
 	private Rigidbody2D m_rigidbody2D;
 	private GatherInput m_gatherInput;
 	private Animator m_animator;
+
+	[Header("Attack Settings")]
+	[SerializeField] private float attackDuration = 0.15f;
+	[SerializeField] private Vector2 attackBoxSize = new Vector2(1.2f, 0.6f);
+	[SerializeField] private Vector2 attackBoxOffset = new Vector2(0.8f, 0f);
+	[SerializeField] private LayerMask enemyLayer;
+
+
+	private bool isAttacking;
+
+	[Header("Dash Settings")]
+	[SerializeField] private float dashSpeed = 20f;
+	[SerializeField] private float dashDuration = 0.15f;
+	[SerializeField] private float dashCooldown = 0.3f;
+
+	private bool isDashing;
+	private float dashCooldownTimer;
 
 	[Header("Gravity Settings")]
 	//[SerializeField] private float fallMultiplier = 2.5f;
@@ -55,6 +77,7 @@ public class PlayerController : MonoBehaviour
 	private int idSpeed;
 	private int idisWallDetected;
 	private int idisKnocked;
+
 
 	[Header("Move settings")]
 	[SerializeField] private float speed;
@@ -93,9 +116,19 @@ public class PlayerController : MonoBehaviour
 	[SerializeField] private float knockedDuration;
 
 
+	private bool ignoreGravityOneFrame;
+	[SerializeField] private int maxAirDashes = 1;
+	private int airDashCount;
+
+
+
 
 	private void Awake()
 	{
+
+		if (spellSpawnPoint == null)
+			Debug.LogError("SpellSpawnPoint no asignado en PlayerController");
+
 		m_gatherInput = GetComponent<GatherInput>();
 		//m_transform = transform;
 		m_rigidbody2D = GetComponent<Rigidbody2D>();
@@ -117,9 +150,150 @@ public class PlayerController : MonoBehaviour
 
 	}
 
+	//void Update()
+	//{
+
+	//	if (spellCooldownTimer > 0)
+	//		spellCooldownTimer -= Time.deltaTime;
+	//	if (m_gatherInput.IsSpelling && spellCooldownTimer <= 0)
+	//	{
+	//		CastLapaSpell();
+	//	}
+
+
+	//	SetAnimatorValues();
+
+
+	//	if (m_gatherInput.IsAttacking && !isAttacking && !isDashing)
+	//	{
+	//		StartCoroutine(AttackRoutine());
+	//	}
+
+	//	if (dashCooldownTimer > 0)
+	//		dashCooldownTimer -= Time.deltaTime;
+
+	//	if (m_gatherInput.IsDashing
+	//&& !isDashing
+	//&& dashCooldownTimer <= 0
+	//&& (isGrounded || airDashCount < maxAirDashes))
+	//	{
+	//		// si estoy atacando, lo cancelo
+	//		if (isAttacking)
+	//		{
+	//			StopAllCoroutines();
+	//			isAttacking = false;
+	//			m_animator.SetBool("isAttacking", false);
+	//			m_gatherInput.IsAttacking = false;
+	//		}
+
+	//		StartCoroutine(DashRoutine());
+	//	}
+
+
+
+
+
+	//}
+
 	void Update()
 	{
+		// 1️⃣ Timers
+		UpdateTimers();
+
+		// 2️⃣ Animator (no decide nada)
 		SetAnimatorValues();
+
+		// 3️⃣ Acciones fuertes
+		HandleDash();
+
+		// 4️⃣ Acciones medias
+		HandleAttack();
+
+		// 5️⃣ Acciones ligeras
+		HandleSpell();
+	}
+
+
+
+
+	private void UpdateTimers()
+	{
+		if (spellCooldownTimer > 0)
+			spellCooldownTimer -= Time.deltaTime;
+
+		if (dashCooldownTimer > 0)
+			dashCooldownTimer -= Time.deltaTime;
+	}
+
+	private void HandleDash()
+	{
+		if (!m_gatherInput.IsDashing) return;
+		if (isDashing) return;
+		if (dashCooldownTimer > 0) return;
+		if (!isGrounded && airDashCount >= maxAirDashes) return;
+
+		// cancelar ataque si existe
+		if (isAttacking)
+		{
+			StopAllCoroutines();
+			isAttacking = false;
+			m_animator.SetBool("isAttacking", false);
+			m_gatherInput.IsAttacking = false;
+		}
+
+		StartCoroutine(DashRoutine());
+	}
+
+	private void HandleAttack()
+	{
+		if (!m_gatherInput.IsAttacking) return;
+		if (isAttacking) return;
+		if (isDashing) return;
+
+		StartCoroutine(AttackRoutine());
+	}
+
+	private void HandleSpell()
+	{
+		if (!m_gatherInput.IsSpelling) return;
+		if (spellCooldownTimer > 0) return;
+
+		CastLapaSpell();
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+	private void CastLapaSpell()
+	{
+
+		if (lapaMissilePrefab == null)
+		{
+			Debug.LogError("LapaMissilePrefab NO asignado");
+			return;
+		}
+
+
+
+		spellCooldownTimer = spellCooldown;
+
+		Instantiate(
+			lapaMissilePrefab,
+			spellSpawnPoint.position,
+			Quaternion.Euler(0, 0, direction == 1 ? 0 : 180)
+		);
+
+		// consumimos input
+		m_gatherInput.IsSpelling = false;
 	}
 
 	private void SetAnimatorValues()
@@ -132,6 +306,14 @@ public class PlayerController : MonoBehaviour
 	// Update is called once per frame
 	void FixedUpdate()
 	{
+
+		if (ignoreGravityOneFrame)
+		{
+			ignoreGravityOneFrame = false;
+			return; // 🔥 NO gravedad, NO física este frame
+		}
+
+		if (isDashing) return;
 		if (isKnocked) return;
 		CheckCollision();
 		UpdateCoyoteTime();
@@ -175,6 +357,8 @@ public class PlayerController : MonoBehaviour
 			isGrounded = true;
 			counterExtraJumps = extraJumps;
 			canDoubleJump = false;
+
+			airDashCount = 0; // 🔥 reset dash aéreo
 		}
 		else
 		{
@@ -212,6 +396,9 @@ public class PlayerController : MonoBehaviour
 	private void Move()
 	{
 
+		if (isWallDetected && m_gatherInput.Value.x == direction)
+			return;
+
 		//if (isWallDetected && !isGrounded) return;
 		if (isWallJumping) return;
 
@@ -234,6 +421,47 @@ public class PlayerController : MonoBehaviour
 		m_transform.localScale = new Vector3(-m_transform.localScale.x, 1, 1);
 		direction *= -1;
 	}
+
+	private IEnumerator DashRoutine()
+	{
+		// 🔹 1. SNAP: ignorar física 1 frame
+		ignoreGravityOneFrame = true;
+
+		// 🔹 2. Resolver pared ANTES
+		if (isWallDetected)
+		{
+			direction *= -1;
+			m_transform.localScale = new Vector3(-m_transform.localScale.x, 1, 1);
+			canWallSlide = false;
+			isWallDetected = false;
+		}
+
+		// 🔹 3. Entrar en dash
+		isDashing = true;
+		dashCooldownTimer = dashCooldown;
+
+		m_animator.SetBool("isDashing", true);
+
+		m_rigidbody2D.linearVelocity = Vector2.zero;
+
+		float timer = 0f;
+
+		while (timer < dashDuration)
+		{
+			m_rigidbody2D.linearVelocity =
+				new Vector2(direction * dashSpeed, 0f);
+
+			timer += Time.deltaTime;
+			yield return null;
+		}
+
+		// 🔹 4. Salida limpia
+		isDashing = false;
+		m_animator.SetBool("isDashing", false);
+		m_gatherInput.IsDashing = false;
+	}
+
+
 
 
 
@@ -366,6 +594,42 @@ public class PlayerController : MonoBehaviour
 		}
 	}
 
+	private IEnumerator AttackRoutine()
+	{
+
+		isAttacking = true;
+
+		m_rigidbody2D.linearVelocity =
+			new Vector2(0f, m_rigidbody2D.linearVelocityY);
+
+		Vector2 attackPos =
+			(Vector2)transform.position +
+			new Vector2(attackBoxOffset.x * direction, attackBoxOffset.y);
+
+		Collider2D[] hits = Physics2D.OverlapBoxAll(
+			attackPos,
+			attackBoxSize,
+			0f,
+			enemyLayer
+		);
+		m_animator.SetBool("isAttacking", true);
+
+
+		foreach (Collider2D hit in hits)
+		{
+			if (hit.TryGetComponent(out Enemy enemy))
+			{
+				enemy.TakeDamage(1);
+			}
+		}
+
+		yield return new WaitForSeconds(attackDuration);
+
+		isAttacking = false;
+		m_gatherInput.IsAttacking = false; // 👈 CLAVE
+		m_animator.SetBool("isAttacking", false);
+	}
+
 
 	private void ConsumeJump()
 	{
@@ -452,6 +716,7 @@ public class PlayerController : MonoBehaviour
 
 	private void OnDrawGizmos()
 	{
+
 		if (!Application.isPlaying) return;
 
 		Vector3 pos = transform.position;
