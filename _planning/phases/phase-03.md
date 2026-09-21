@@ -1,3 +1,5 @@
+> **STALE (Planner, 2026-09-20).** The roadmap in `.agents/rules/planner.md` was re-split after the design-bible read; Phase 03 is now **Core movement feel** and Biome 1 layout moved to Phase 04. This file is rewritten when Phase 03 is activated — do not plan from it.
+
 # Phase 03 — Biome 1 Planning & Optimization (placeholder)
 
 Requires Phase 02 `APPROVED`. Planner should rewrite this file once the design bible has been read — this
