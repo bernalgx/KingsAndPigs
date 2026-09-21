@@ -34,8 +34,9 @@ localization, add a fresh rule for it then, don't resurrect this one.)
 ## Stack
 
 - Engine: **Unity 6 LTS (6000.3.4f1)**, DX12 in-editor. Confirmed.
-- Language: C#, scripting backend as configured in Project Settings (confirm Mono vs IL2CPP during Phase 1
-  — not yet confirmed).
+- Language: C#, **scripting backend: Mono** for the Standalone (Windows/Mac/Linux) target. Confirmed from
+  `ProjectSettings/ProjectSettings.asset`. IL2CPP is only set for Android — irrelevant until a mobile build
+  is actually planned.
 - Rendering: URP 2D. Pixel Perfect Camera + Cinemachine 2D virtual cameras once camera work starts (a
   `CinemachineCamera` already exists in `Level_Prototype`).
 - Input: new Input System — `Assets/Inputs/Controls.inputactions` (generated `Controls.cs`), read through
@@ -81,7 +82,11 @@ available in the agent's environment:
 - Task: `_planning/current-task.md`
 - Phase: `_planning/phases/phase-XX.md`
 - Audit: `_planning/audits/audit-XX.md` (kept terse — mainly for other agent sessions, not prose for humans)
-- Design bible: the previous rules pointed Planner at
-  `C:\Users\mau\source\repos\KingsAndPigs_planning\MAIN Planning`, a path on a different machine that won't
-  resolve inside this repo for any agent. Phase 1 must either copy that content into
-  `_planning/MAIN-Planning/` inside this repo, or log its real location here once decided.
+- Design bible: now lives inside this repo at **`_planning/MAIN Planning/`** (note: real folder name has a
+  space, not a hyphen — use it exactly as written or path lookups will fail). Contains the canon docs,
+  Biome 1 (Sotobosque / cloud-forest) research and color palettes, and the Nahuales spreadsheet. Confirmed
+  present — Planner can do its Phase 1 read.
+- `_planning/audit_report.md` is **stray content from a different project** (a jAIme RAG/Supabase
+  integration audit) that ended up in this repo's `_planning/` folder — it has nothing to do with IX. Move
+  or delete it; leaving it in place risks a Planner/Auditor session reading it during a bulk scan and
+  getting confused about what project it's in.

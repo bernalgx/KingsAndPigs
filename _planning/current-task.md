@@ -2,9 +2,9 @@
 
 ## Phase: 01 — Foundations & Agent Migration
 
-## Status: REVIEW
+## Status: APPROVED
 
-## Assigned to: Bernal (review), then Planner (activate Phase 2)
+## Assigned to: Planner (activate Phase 2)
 
 ## Context
 
@@ -26,8 +26,13 @@ different machine — both were blocking issues for a fresh agent session workin
 
 - [x] Confirm the actual Unity version — **Unity 6 LTS (6000.3.4f1)**. Recorded in `global.md` → Stack.
 - [x] Confirm PPU — **100**. Recorded in `global.md` → Stack.
-- [ ] Confirm scripting backend (Mono vs IL2CPP) in Project Settings; record in `global.md` → Stack.
-- [ ] Copy/point the design bible (previously
-      `C:\Users\mau\source\repos\KingsAndPigs_planning\MAIN Planning` on a different machine) into this
-      repo at `_planning/MAIN-Planning/`, or log its real location in `global.md` → Files. Planner cannot
-      do its Phase-1 read until this resolves.
+- [x] Confirm scripting backend — **Mono** (Standalone). Recorded in `global.md` → Stack.
+- [x] Design bible found in-repo at `_planning/MAIN Planning/`. Recorded in `global.md` → Files.
+
+## Housekeeping (not blocking, but do before Phase 2 gets noisy)
+
+- [ ] `_planning/audit_report.md` is a leftover from a different project (jAIme RAG/Supabase) — move or
+      delete it so it doesn't get picked up in a bulk `_planning` read.
+- [ ] `tileset.jpg` currently sits at the repo root — Phase 2's first step is importing it into
+      `Assets/Sprites` (or a new `Assets/Tilesets`) properly; leaving it at root is fine short-term but
+      don't forget it.

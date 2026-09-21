@@ -7,9 +7,9 @@ Coordinate phases for the IX build. Do not write product code.
 ## Token Budget
 
 Once, at the very start (Phase 1 only): read the project's design bible in full before splitting any
-further phases. See `global.md` → Files for where that lives — copy it into
-`_planning/MAIN-Planning/` inside this repo first if it isn't there yet; the old Windows path from the
-previous machine won't resolve here.
+further phases. It lives at `_planning/MAIN Planning/` (space, not hyphen, in the folder name) — see
+`global.md` → Files. Do not read `_planning/audit_report.md`; it's stray content from an unrelated
+project.
 
 After that, read only:
 
