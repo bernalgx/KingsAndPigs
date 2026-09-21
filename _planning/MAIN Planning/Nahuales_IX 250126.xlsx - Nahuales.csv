@@ -1,0 +1,33 @@
+Animal,Nombre indígena (referencial),Qué representa,Pasiva,Activa,Rol en el juego,Rol narrativo y relación temática,Culturas de referencia,Estado / Notas
+Mariposa morpho,Së́k,"Paz, tránsito del alma",Calma ambiental,Aura de paz,Regulador emocional,Recuerda que el mundo no nació corrupto; aparece tras purificación,"Bribri, Cabécar, Maya",Mantener (única no violenta)
+Delfín,Imox,"Agua viva, tránsito",Nadar bajo agua,Orbe + teleport,Exploración / spell,El agua como camino espiritual,"Maya, Bribri",Mantener
+Perezoso,Sulù,Tiempo natural,"Slow al estar quieto Pasiva (siempre activa):Si el jugador:no se mueve, no ataca, no usa habilidades, Entonces:
+enemigos cercanos entran en slow proyectiles se vuelven más lentos animaciones enemigas bajan velocidad 📌 El radio es local, no todo el mapa.
+📌 El slow escala con el tiempo quieto (0.5s → 1s → cap).",Ancla temporal / Chronosphere,Ritmo / control,La prisa es parte de la maldición,"Cabécar, Bribri",Mantener
+Tepesquintle,Kë̀kö,"Tierra, peso",No empujable," Oleada de Tierra El jugador pisa con fuerza y una oleada de tierra se propaga por el suelo frente a él, derribando a los enemigos que toca. aso 1
+Saltas y caes sobre A
+➡️ Rebotas hacia arriba (pasiva)
+Paso 2
+En el aire, ves que B está cerca
+➡️ Aprietas la activa
+Paso 3
+El personaje:
+se impulsa SOLO hacia B
+lo golpea desde arriba
+vuelve a rebotar
+Paso 4
+Ahora puedes:
+volver a apretar la activa para ir a otro
+o dejarte caer
+👉 Eso es la activa.",Gating físico,Guardián del suelo fértil,"Bribri, Cabécar",Mantener
+Araña saltadora,Amù,"Destino, precisión",Rebota automáticamente al caer sobre enemigos o proyectiles desde el aire.,"Salto encadenado Tras un rebote exitoso, permite encadenar saltos entre enemigos cercanos activando la habilidad en el aire.",Combate técnico,Tejedora del combate,"Maya, Nahua",Mantener
+Mono (congo/araña),B’atz’,Hilo del tiempo,Caminar orgánico,Lianas,Metroidvania puro,El mundo se recorre si se entiende,"Maya, Bribri",Mantener (núcleo)
+Armadillo,Kìrö,Defensa interior,Cura protegida,Golpe vertical,Defensa,Retirarse también es sabio,Cabécar,Candidato a fusión
+Jaguar,Balam,Poder nocturno,Trepa,Corte ritual (AOE),Combate / sentencia,Castiga el desequilibrio,"Maya, Azteca",Mantener
+Águila,Kú,Visión elevada,Doble salto,Rayo horizontal instantáneo,Control / burst,Ver desde arriba revela la verdad,"Bribri, Inca",Mantener
+Búho,Tukúr,Ver lo oculto,Ver en oscuridad,—,Percepción,Ver lo que duele,"Maya, Bribri",Mantener
+Pez espada,Chak,"Corte, decisión",+ daño machete,—,DPS plano,Obsidiana sin duda,"Maya, Azteca",Candidato a eliminar
+Guacamaya,Lapa,Voz del bosque,—,Dash / misiles,Starter,El bosque grita cuando sangra,Bribri,Mantener
+Venado,Yàmi,Huida sagrada,Velocidad,—,Flow,Sobrevivir sin corromperse,Cabécar,Candidato a fusión
+Tiburón,Xok,Respuesta ritual,Parry,Parry + teleport,Combate técnico,"El mar responde, no ataca",Maya costero,Mantener
+Zorro gris (espiritual),Okö,Guía liminal,Detecta secretos,Espíritu autónomo,Exploración,Guía que no decide por vos,"Bribri, Nahua",Mantener (narrativo fuerte)

@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-1...
+1...migrar y empezar a construir el bioma 1 el sotobosque indigina costa rica, principal entidad del juego.
 
 2...
 

@@ -6,6 +6,9 @@ Coordinate phases. Do not write product code.
 
 ## Token Budget
 
+First phase must read and analyse mi undernstandeing of the game condensed in these files
+C:\Users\mau\source\repos\KingsAndPigs_planning\MAIN Planning ---> This is the bible of the project (IX) .
+
 Read only:
 
 1. `_planning/current-task.md`
